@@ -1,0 +1,42 @@
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Environment files
+.env
+.env.*
+env.local
+*.env
+
+# Flask / runtime
+instance/
+*.log
+*.pid
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Uploads / local storage (candidate docs)
+uploads/
+storage/
+data/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/
+
+# Cursor
+.cursor/
+

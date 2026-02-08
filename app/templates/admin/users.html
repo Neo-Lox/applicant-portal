@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Benutzer verwalten{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="flex-between">
+        <div>
+            <h1>Benutzer verwalten</h1>
+        </div>
+        <a href="/admin/" class="btn btn-outline">← Dashboard</a>
+    </div>
+</div>
+
+<div class="card">
+    <h2 class="card-title">Neuen Benutzer erstellen</h2>
+    <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-row">
+            <div class="form-group">
+                <label>E-Mail *</label>
+                <input name="email" type="email" required>
+            </div>
+            <div class="form-group">
+                <label>Passwort *</label>
+                <div style="position: relative;">
+                    <input id="new-user-password" name="password" type="password" required style="padding-right: 2.5rem;">
+                    <button
+                        type="button"
+                        id="toggle-new-user-password"
+                        aria-label="Passwort anzeigen/verbergen"
+                        title="Passwort anzeigen/verbergen"
+                        style="position:absolute; right:0.6rem; top:50%; transform:translateY(-50%); background:transparent; border:0; padding:0; cursor:pointer; color:var(--text-secondary);"
+                    >
+                        <svg id="eye-open" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                        <svg id="eye-off" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:none;">
+                            <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-6.5 0-10-7-10-7a21.8 21.8 0 0 1 5.06-6.94"></path>
+                            <path d="M1 1l22 22"></path>
+                            <path d="M9.9 4.24A10.94 10.94 0 0 1 12 5c6.5 0 10 7 10 7a21.8 21.8 0 0 1-3.2 4.6"></path>
+                            <path d="M14.12 14.12a3 3 0 0 1-4.24-4.24"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Rolle</label>
+            <select name="role">
+                <option value="recruiter">Recruiter</option>
+                <option value="admin">Admin</option>
+                <option value="viewer">Viewer</option>
+            </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Benutzer erstellen</button>
+    </form>
+</div>
+
+<div class="card">
+    <h2 class="card-title">Vorhandene Benutzer</h2>
+    {% if users %}
+        <div class="list">
+            {% for user in users %}
+                <div class="list-item">
+                    <div class="flex-between">
+                        <div>
+                            <h3 style="margin-bottom: 0.5rem;">{{ user.email }}</h3>
+                            <div style="display: flex; gap: 1rem; align-items: center;">
+                                <span class="badge badge-{{ user.role }}">{{ user.role }}</span>
+                                <span style="color: var(--text-secondary); font-size: 0.875rem;">
+                                    Erstellt: {{ user.created_at.strftime('%d.%m.%Y') if user.created_at else '' }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="btn-group" style="margin:0;">
+                            <a class="btn btn-outline btn-sm" href="/admin/users/{{ user.id }}/edit">Bearbeiten</a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p style="color: var(--text-secondary);">Noch keine Benutzer vorhanden.</p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    const pw = document.getElementById('new-user-password');
+    const btn = document.getElementById('toggle-new-user-password');
+    const eyeOpen = document.getElementById('eye-open');
+    const eyeOff = document.getElementById('eye-off');
+    if (!pw || !btn || !eyeOpen || !eyeOff) return;
+
+    function sync() {
+      const visible = pw.type === 'text';
+      eyeOpen.style.display = visible ? 'none' : 'inline';
+      eyeOff.style.display = visible ? 'inline' : 'none';
+    }
+
+    btn.addEventListener('click', function () {
+      pw.type = (pw.type === 'password') ? 'text' : 'password';
+      sync();
+    });
+
+    sync();
+  })();
+</script>
+{% endblock %}

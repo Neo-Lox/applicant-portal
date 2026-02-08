@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Admin Dashboard</h1>
+    <p>Willkommen, {{ user.email }} ({{ user.role }})</p>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-top: 2rem;">
+    <a href="/admin/jobs" class="card" style="text-decoration: none; transition: transform 0.2s;">
+        <h2 class="card-title">Jobs verwalten</h2>
+        <p style="color: var(--text-secondary);">Stellenangebote erstellen und bearbeiten</p>
+    </a>
+
+    <a href="/admin/workflows" class="card" style="text-decoration: none; transition: transform 0.2s;">
+        <h2 class="card-title">Workflows verwalten</h2>
+        <p style="color: var(--text-secondary);">Bewerbungsprozesse konfigurieren</p>
+    </a>
+
+    <a href="/admin/users" class="card" style="text-decoration: none; transition: transform 0.2s;">
+        <h2 class="card-title">Benutzer verwalten</h2>
+        <p style="color: var(--text-secondary);">Mitarbeiter und Rollen verwalten</p>
+    </a>
+
+    <a href="/internal/applications" class="card" style="text-decoration: none; transition: transform 0.2s;">
+        <h2 class="card-title">Bewerbungen</h2>
+        <p style="color: var(--text-secondary);">Zur Bewerbungsübersicht</p>
+    </a>
+</div>
+{% endblock %}

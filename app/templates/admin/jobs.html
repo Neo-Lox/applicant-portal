@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+
+{% block title %}Jobs verwalten{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="flex-between">
+        <div>
+            <h1>Jobs verwalten</h1>
+        </div>
+        <a href="/admin/" class="btn btn-outline">← Dashboard</a>
+    </div>
+</div>
+
+<div class="card">
+    <h2 class="card-title">Neuen Job erstellen</h2>
+    <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Titel *</label>
+                <input name="title" type="text" required>
+            </div>
+            <div class="form-group">
+                <label>Standort</label>
+                <input name="location" type="text">
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>Abteilung</label>
+                <input name="department" type="text">
+            </div>
+            <div class="form-group etype-combo" data-combo="employment_type">
+                <label>Job-Typ</label>
+                <input name="employment_type" type="text" placeholder="z.B. Vollzeit, Teilzeit, Schicht, Remote" autocomplete="off">
+                <div class="etype-menu" role="listbox" aria-label="Job-Typ Vorschläge"></div>
+            </div>
+            <div class="form-group">
+                <label>Workflow</label>
+                <select name="workflow_id">
+                    <option value="">Kein Workflow</option>
+                    {% for workflow in workflows %}
+                        <option value="{{ workflow.id }}">{{ workflow.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Aktive bis</label>
+                <input
+                    name="published_until"
+                    type="date"
+                    autocomplete="off"
+                    {% if today %}min="{{ today.isoformat() }}"{% endif %}
+                    required
+                >
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Beschreibung</label>
+            <textarea name="description" rows="5"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Anforderungen</label>
+            <textarea name="requirements" rows="5"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label style="display: flex; align-items: center; cursor: pointer;">
+                <input type="checkbox" name="published">
+                <span style="margin-left: 0.5rem;">Veröffentlicht</span>
+            </label>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Job erstellen</button>
+    </form>
+</div>
+
+<script>
+(function() {
+    const baseOptions = ["Vollzeit", "Teilzeit", "Schicht", "Remote"];
+
+    function setupCombo(container) {
+        const input = container.querySelector('input[name="employment_type"]');
+        const menu = container.querySelector('.etype-menu');
+        if (!input || !menu) return;
+
+        function open() { container.classList.add('open'); }
+        function close() { container.classList.remove('open'); }
+
+        function render() {
+            const q = (input.value || "").trim().toLowerCase();
+            const opts = baseOptions.filter(v => !q || v.toLowerCase().includes(q));
+            menu.innerHTML = "";
+            if (!opts.length) { close(); return; }
+            opts.forEach(v => {
+                const div = document.createElement('div');
+                div.className = 'etype-option';
+                div.setAttribute('role', 'option');
+                div.textContent = v;
+                div.addEventListener('mousedown', (e) => {
+                    // mousedown so it selects before blur
+                    e.preventDefault();
+                    input.value = v;
+                    close();
+                });
+                menu.appendChild(div);
+            });
+            open();
+        }
+
+        input.addEventListener('focus', render);
+        input.addEventListener('input', render);
+        input.addEventListener('blur', () => setTimeout(close, 120));
+
+        document.addEventListener('mousedown', (e) => {
+            if (!container.contains(e.target)) close();
+        });
+    }
+
+    document.querySelectorAll('.form-group.etype-combo[data-combo="employment_type"]').forEach(setupCombo);
+})();
+</script>
+
+<div class="card">
+    <h2 class="card-title">Vorhandene Jobs</h2>
+    {% if jobs %}
+        <div class="list">
+            {% for job in jobs %}
+                <div class="list-item">
+                    <div class="flex-between">
+                        <div>
+                            <h3 style="margin-bottom: 0.5rem;">{{ job.title }}</h3>
+                            <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                                {% set is_expired = (job.published and job.published_until and today and job.published_until < today) %}
+                                {% if is_expired %}
+                                    <span class="badge badge-rejected">Abgelaufen</span>
+                                {% elif job.published %}
+                                    <span class="badge badge-success">Veröffentlicht</span>
+                                {% else %}
+                                    <span class="badge badge-in-progress">Entwurf</span>
+                                {% endif %}
+                                {% if job.location %}
+                                    <span style="color: var(--text-secondary);">{{ icon("location") }} {{ job.location }}</span>
+                                {% endif %}
+                                {% if job.employment_type %}
+                                    <span style="color: var(--text-secondary);">{{ icon("clock") }} {{ job.employment_type }}</span>
+                                {% endif %}
+                                {% if job.published_until %}
+                                    {% if is_expired %}
+                                        <span style="color: var(--danger-color);">{{ icon("calendar") }} Aktive bis: {{ job.published_until.strftime("%d.%m.%Y") }}</span>
+                                    {% else %}
+                                        {% set days_left = (job.published_until - today).days if today else None %}
+                                        <span style="color: var(--text-secondary);">
+                                            {{ icon("calendar") }}
+                                            Aktive bis {{ job.published_until.strftime("%d.%m.%Y") }}
+                                            {% if days_left is not none %}(noch {{ days_left }} Tag{% if days_left != 1 %}e{% endif %}){% endif %}
+                                        </span>
+                                    {% endif %}
+                                {% else %}
+                                    <span style="color: var(--danger-color);">{{ icon("calendar") }} Aktive bis: —</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="btn-group">
+                            {% set m = job_meta.get(job.id) if job_meta else None %}
+                            <a href="/admin/jobs/{{ job.id }}/edit" class="btn btn-outline btn-sm">Bearbeiten</a>
+                            <a href="/admin/jobs/{{ job.id }}/documents" class="btn btn-outline btn-sm">Unterlagen</a>
+                            <a href="/jobs/{{ job.id }}/details" class="btn btn-primary btn-sm">Ansehen</a>
+                            {% if m and m.can_delete %}
+                                <form method="post" action="/admin/jobs/{{ job.id }}/delete" style="display:inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-outline btn-sm"
+                                            onclick="return confirm('Job wirklich löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.')">
+                                        Löschen
+                                    </button>
+                                </form>
+                            {% else %}
+                                <button type="button" class="btn btn-outline btn-sm" disabled
+                                        title="Nur möglich, wenn der Job nicht veröffentlicht ist und keine Bewerbungen existieren.">
+                                    Löschen
+                                </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p style="color: var(--text-secondary);">Noch keine Jobs vorhanden.</p>
+    {% endif %}
+</div>
+{% endblock %}

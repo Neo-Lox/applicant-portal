@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+
+{% block title %}Job bearbeiten – {{ job.title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="flex-between">
+    <div>
+      <h1>Job bearbeiten</h1>
+      <p style="color: var(--text-secondary);">{{ job.title }}</p>
+    </div>
+    <div class="btn-group">
+      <a href="/admin/jobs" class="btn btn-outline">← Jobs</a>
+      <a href="/admin/jobs/{{ job.id }}/documents" class="btn btn-outline">Unterlagen</a>
+      <a href="/jobs/{{ job.id }}/details" class="btn btn-primary">Ansehen</a>
+      {% if can_delete %}
+        <form method="post" action="/admin/jobs/{{ job.id }}/delete" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-outline"
+                  onclick="return confirm('Job wirklich löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.')">
+            Löschen
+          </button>
+        </form>
+      {% else %}
+        <button type="button" class="btn btn-outline" disabled
+                title="Nur möglich, wenn der Job nicht veröffentlicht ist und keine Bewerbungen existieren.">
+          Löschen
+        </button>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2 class="card-title">Details</h2>
+  {% set is_expired = (job.published and job.published_until and today and job.published_until < today) %}
+  <p style="color: var(--text-secondary); margin-top: -0.5rem;">
+    Bewerbungen: <strong>{{ app_count }}</strong>
+    • Status: <strong>{% if is_expired %}Abgelaufen{% else %}{{ "Veröffentlicht" if job.published else "Entwurf" }}{% endif %}</strong>
+    {% if job.published_until %}
+      • Aktive bis: <strong>{{ job.published_until.strftime("%d.%m.%Y") }}</strong>
+    {% endif %}
+  </p>
+  <form method="post" action="/admin/jobs/{{ job.id }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Titel *</label>
+        <input name="title" type="text" required value="{{ job.title }}">
+      </div>
+      <div class="form-group">
+        <label>Standort</label>
+        <input name="location" type="text" value="{{ job.location or '' }}">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Abteilung</label>
+        <input name="department" type="text" value="{{ job.department or '' }}">
+      </div>
+      <div class="form-group etype-combo" data-combo="employment_type">
+        <label>Job-Typ</label>
+        <input name="employment_type" type="text" value="{{ job.employment_type or '' }}" placeholder="z.B. Vollzeit, Teilzeit, Schicht, Remote" autocomplete="off">
+        <div class="etype-menu" role="listbox" aria-label="Job-Typ Vorschläge"></div>
+      </div>
+      <div class="form-group">
+        <label>Workflow</label>
+        <select name="workflow_id">
+          <option value="">Kein Workflow</option>
+          {% for workflow in workflows %}
+            <option value="{{ workflow.id }}" {% if job.workflow_id == workflow.id %}selected{% endif %}>{{ workflow.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Aktive bis</label>
+        <input
+          id="published_until"
+          name="published_until"
+          type="date"
+          value="{{ job.published_until.isoformat() if job.published_until else '' }}"
+          autocomplete="off"
+          required
+        >
+        <div class="btn-group mt-1">
+          <button type="button" class="btn btn-outline btn-sm" data-frist-add="7">+7 Tage</button>
+          <button type="button" class="btn btn-outline btn-sm" data-frist-add="30">+30 Tage</button>
+          <button type="button" class="btn btn-outline btn-sm" data-frist-set="30">+30 ab heute</button>
+        </div>
+        <p class="wf-help mt-1">Änderungen werden erst nach „Speichern“ aktiv.</p>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Beschreibung</label>
+      <textarea name="description" rows="6">{{ job.description or '' }}</textarea>
+    </div>
+
+    <div class="form-group">
+      <label>Anforderungen</label>
+      <textarea name="requirements" rows="6">{{ job.requirements or '' }}</textarea>
+    </div>
+
+    <div class="form-group">
+      <label style="display: flex; align-items: center; cursor: pointer;">
+        <input type="checkbox" name="published" {% if job.published %}checked{% endif %}>
+        <span style="margin-left: 0.5rem;">Veröffentlicht</span>
+      </label>
+    </div>
+
+    <div class="btn-group">
+      <button type="submit" class="btn btn-primary">{{ icon("check") }} Speichern</button>
+      <a href="/admin/jobs" class="btn btn-outline">Abbrechen</a>
+    </div>
+  </form>
+</div>
+
+<script>
+(function() {
+    const baseOptions = ["Vollzeit", "Teilzeit", "Schicht", "Remote"];
+
+    function setupCombo(container) {
+        const input = container.querySelector('input[name="employment_type"]');
+        const menu = container.querySelector('.etype-menu');
+        if (!input || !menu) return;
+
+        function open() { container.classList.add('open'); }
+        function close() { container.classList.remove('open'); }
+
+        function render() {
+            const q = (input.value || "").trim().toLowerCase();
+            const opts = baseOptions.filter(v => !q || v.toLowerCase().includes(q));
+            menu.innerHTML = "";
+            if (!opts.length) { close(); return; }
+            opts.forEach(v => {
+                const div = document.createElement('div');
+                div.className = 'etype-option';
+                div.setAttribute('role', 'option');
+                div.textContent = v;
+                div.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    input.value = v;
+                    close();
+                });
+                menu.appendChild(div);
+            });
+            open();
+        }
+
+        input.addEventListener('focus', render);
+        input.addEventListener('input', render);
+        input.addEventListener('blur', () => setTimeout(close, 120));
+
+        document.addEventListener('mousedown', (e) => {
+            if (!container.contains(e.target)) close();
+        });
+    }
+
+    document.querySelectorAll('.form-group.etype-combo[data-combo="employment_type"]').forEach(setupCombo);
+})();
+</script>
+
+<script>
+(function() {
+    function parseIsoDate(raw) {
+        const v = (raw || '').trim();
+        if (!v) return null;
+        const m = v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!m) return null;
+        const yyyy = parseInt(m[1], 10);
+        const mm = parseInt(m[2], 10);
+        const dd = parseInt(m[3], 10);
+        if (!yyyy || mm < 1 || mm > 12 || dd < 1 || dd > 31) return null;
+        const d = new Date(yyyy, mm - 1, dd);
+        if (d.getFullYear() !== yyyy || (d.getMonth() + 1) !== mm || d.getDate() !== dd) return null;
+        return d;
+    }
+
+    function formatIsoDate(d) {
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function todayLocal() {
+        const now = new Date();
+        return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    }
+
+    function addDays(base, days) {
+        const d = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+        d.setDate(d.getDate() + days);
+        return d;
+    }
+
+    function setDateValue(input, d) {
+        input.value = formatIsoDate(d);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    document.addEventListener('click', (e) => {
+        const input = document.getElementById('published_until');
+        if (!input) return;
+
+        const addBtn = e.target.closest('[data-frist-add]');
+        if (addBtn) {
+            const days = parseInt(addBtn.getAttribute('data-frist-add') || '0', 10) || 0;
+            const base = parseIsoDate(input.value) || todayLocal();
+            setDateValue(input, addDays(base, days));
+            try { input.focus(); } catch (_) {}
+            return;
+        }
+
+        const setBtn = e.target.closest('[data-frist-set]');
+        if (setBtn) {
+            const days = parseInt(setBtn.getAttribute('data-frist-set') || '0', 10) || 0;
+            setDateValue(input, addDays(todayLocal(), days));
+            try { input.focus(); } catch (_) {}
+        }
+    });
+})();
+</script>
+{% endblock %}
+

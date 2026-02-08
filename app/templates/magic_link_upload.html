@@ -1,0 +1,1658 @@
+{% extends "base.html" %}
+
+{% block title %}Dokumente nachreichen{% endblock %}
+
+{% block nav %}
+    <a href="/">Startseite</a>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+    .upload-container {
+        max-width: 720px;
+        margin: 0 auto;
+    }
+
+    .upload-hero {
+        text-align: center;
+        padding: 2rem 1.5rem;
+        background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+        border-radius: 16px 16px 0 0;
+        color: white;
+    }
+
+    .upload-hero h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+
+    .upload-hero .greeting {
+        font-size: 1.1rem;
+        opacity: 0.9;
+    }
+
+    .upload-hero .meta {
+        display: flex;
+        justify-content: center;
+        gap: 1.5rem;
+        margin-top: 1rem;
+        font-size: 0.875rem;
+        opacity: 0.8;
+    }
+
+    .upload-hero .meta-item {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .upload-card {
+        background: var(--card-bg);
+        border-radius: 0 0 16px 16px;
+        box-shadow: var(--shadow-lg);
+        overflow: hidden;
+    }
+
+    .upload-body {
+        padding: 1.5rem;
+    }
+
+    /* Security badge */
+    .security-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: rgba(16, 185, 129, 0.1);
+        color: #059669;
+        padding: 0.4rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        margin-top: 1rem;
+    }
+
+    .security-badge.warning {
+        background: rgba(245, 158, 11, 0.1);
+        color: #d97706;
+    }
+
+    /* Error states */
+    .error-state {
+        text-align: center;
+        padding: 3rem 2rem;
+    }
+
+    .error-state .icon-large {
+        width: 64px;
+        height: 64px;
+        margin: 0 auto 1rem;
+        color: var(--danger-color);
+    }
+
+    .error-state h2 {
+        font-size: 1.5rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .error-state p {
+        color: var(--text-secondary);
+        margin-bottom: 1.5rem;
+    }
+
+    /* Document checklist */
+    .docs-section {
+        margin-bottom: 1.5rem;
+    }
+
+    .docs-section-title {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .docs-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .doc-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        background: var(--bg-color);
+        border-radius: 8px;
+        font-size: 0.9rem;
+        transition: background 0.15s;
+    }
+
+    .doc-item.missing {
+        border-left: 3px solid var(--warning-color);
+    }
+
+    .doc-item.received {
+        border-left: 3px solid var(--success-color);
+        opacity: 0.7;
+    }
+
+    .doc-item.pending {
+        border-left: 3px solid var(--primary-color);
+        background: rgba(37, 99, 235, 0.05);
+    }
+
+    .doc-item .status-icon {
+        width: 20px;
+        height: 20px;
+        flex-shrink: 0;
+    }
+
+    .doc-item .status-icon.missing {
+        color: var(--warning-color);
+    }
+
+    .doc-item .status-icon.received {
+        color: var(--success-color);
+    }
+
+    .doc-item .status-icon.pending {
+        color: var(--primary-color);
+    }
+
+    .doc-item .pending-badge {
+        font-size: 0.7rem;
+        background: var(--primary-color);
+        color: white;
+        padding: 0.15rem 0.4rem;
+        border-radius: 4px;
+        font-weight: 600;
+    }
+
+    /* Inline upload button per checklist item */
+    .checklist-upload-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 0.5rem 0.85rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+        flex-shrink: 0;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .checklist-upload-btn::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+        transition: left 0.5s;
+    }
+
+    .checklist-upload-btn:hover {
+        background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    }
+
+    .checklist-upload-btn:hover::before {
+        left: 100%;
+    }
+
+    .checklist-upload-btn:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+    }
+
+    .checklist-upload-btn:focus-visible {
+        outline: 3px solid rgba(37, 99, 235, 0.5);
+        outline-offset: 2px;
+    }
+
+    .checklist-upload-btn svg {
+        flex-shrink: 0;
+    }
+
+    .checklist-upload-btn.uploading {
+        pointer-events: none;
+        opacity: 0.8;
+        cursor: not-allowed;
+        background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+    }
+
+    .checklist-upload-btn.success {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        pointer-events: none;
+        box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+    }
+
+    /* Inline upload progress for checklist items */
+    .checklist-item-progress {
+        display: none;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.4rem;
+        margin-left: 1.625rem;
+    }
+
+    .checklist-item-progress.active {
+        display: flex;
+    }
+
+    .checklist-item-progress .mini-progress {
+        flex: 1;
+        height: 4px;
+        background: var(--border-color);
+        border-radius: 2px;
+        overflow: hidden;
+    }
+
+    .checklist-item-progress .mini-progress-fill {
+        height: 100%;
+        background: var(--primary-color);
+        border-radius: 2px;
+        transition: width 0.3s;
+        width: 0%;
+    }
+
+    .checklist-item-progress .mini-progress-text {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        white-space: nowrap;
+    }
+
+    /* Inline file name after upload */
+    .checklist-item-uploaded {
+        display: none;
+        align-items: center;
+        gap: 0.35rem;
+        margin-top: 0.35rem;
+        margin-left: 1.625rem;
+        font-size: 0.75rem;
+        color: var(--success-color);
+        font-weight: 500;
+    }
+
+    .checklist-item-uploaded.active {
+        display: flex;
+    }
+
+    .checklist-item-uploaded svg {
+        flex-shrink: 0;
+    }
+
+    /* Inline error message */
+    .checklist-item-error {
+        display: none;
+        align-items: center;
+        gap: 0.35rem;
+        margin-top: 0.35rem;
+        margin-left: 1.625rem;
+        font-size: 0.75rem;
+        color: var(--danger-color);
+        font-weight: 500;
+    }
+
+    .checklist-item-error.active {
+        display: flex;
+    }
+
+    /* Small generic upload area */
+    .extra-upload-area {
+        margin-top: 1.5rem;
+        padding: 1rem;
+        border: 1px dashed var(--border-color);
+        border-radius: 10px;
+        text-align: center;
+        background: var(--bg-color);
+        cursor: pointer;
+        transition: border-color 0.15s, background 0.15s;
+        position: relative;
+    }
+
+    .extra-upload-area:hover {
+        border-color: var(--primary-color);
+        background: rgba(37, 99, 235, 0.03);
+    }
+
+    .extra-upload-area input[type="file"] {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        cursor: pointer;
+    }
+
+    .extra-upload-area .extra-upload-label {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+    }
+
+    .extra-upload-area .extra-upload-label svg {
+        color: var(--primary-color);
+    }
+
+    .extra-upload-hint {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin-top: 0.35rem;
+    }
+
+    /* Expandable checklist */
+    .docs-checklist {
+        margin-bottom: 1.5rem;
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        overflow: hidden;
+    }
+
+    .docs-checklist-summary {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.875rem 1rem;
+        background: var(--bg-color);
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .docs-checklist-summary:hover {
+        background: #f1f5f9;
+    }
+
+    .docs-checklist[open] .docs-checklist-summary {
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .checklist-counter {
+        margin-left: auto;
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: var(--text-secondary);
+    }
+
+    .checklist-counter .counter-item.received {
+        color: var(--success-color);
+        font-weight: 600;
+    }
+
+    .docs-checklist-body {
+        padding: 0.5rem;
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    .checklist-group {
+        margin-bottom: 0.5rem;
+    }
+
+    .checklist-group:last-child {
+        margin-bottom: 0;
+    }
+
+    .checklist-group-title {
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-secondary);
+        padding: 0.5rem 0.75rem 0.25rem;
+    }
+
+    .checklist-item {
+        padding: 0.875rem 1rem;
+        border-radius: 10px;
+        margin-bottom: 0.5rem;
+        background: white;
+        transition: all 0.2s ease;
+        border: 2px solid transparent;
+        position: relative;
+    }
+
+    .checklist-item:hover {
+        background: #f9fafb;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+
+    .checklist-item.missing {
+        border-left: 4px solid #f59e0b;
+        background: linear-gradient(90deg, rgba(245, 158, 11, 0.05) 0%, white 5%);
+    }
+
+    .checklist-item.pending {
+        border-left: 4px solid #3b82f6;
+        background: linear-gradient(90deg, rgba(59, 130, 246, 0.05) 0%, white 5%);
+    }
+
+    .checklist-item.received {
+        border-left: 4px solid #10b981;
+        background: linear-gradient(90deg, rgba(16, 185, 129, 0.05) 0%, white 5%);
+        opacity: 0.8;
+    }
+
+    .checklist-item.wrong {
+        border-left: 4px solid #ef4444;
+        background: linear-gradient(90deg, rgba(239, 68, 68, 0.05) 0%, white 5%);
+    }
+
+    .checklist-item-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .checklist-icon {
+        flex-shrink: 0;
+    }
+
+    .checklist-icon.missing {
+        color: var(--warning-color);
+    }
+
+    .checklist-icon.pending {
+        color: var(--primary-color);
+    }
+
+    .checklist-icon.received {
+        color: var(--success-color);
+    }
+
+    .checklist-item-title {
+        flex: 1;
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: #1f2937;
+        line-height: 1.5;
+    }
+
+    .checklist-item-code {
+        color: #6b7280;
+        font-size: 0.8rem;
+        font-weight: 400;
+    }
+
+    .checklist-item-files {
+        margin-top: 0.4rem;
+        margin-left: 1.625rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .checklist-file {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.75rem;
+        color: var(--primary-color);
+        padding: 0.2rem 0.5rem;
+        background: rgba(37, 99, 235, 0.08);
+        border-radius: 4px;
+        width: fit-content;
+    }
+
+    .checklist-file svg {
+        flex-shrink: 0;
+    }
+
+    .pending-badge, .received-badge {
+        font-size: 0.65rem;
+        padding: 0.15rem 0.4rem;
+        border-radius: 4px;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .pending-badge {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    .received-badge {
+        background: var(--success-color);
+        color: white;
+    }
+
+    .doc-item .doc-label {
+        flex: 1;
+    }
+
+    .doc-item .required-badge {
+        font-size: 0.7rem;
+        background: var(--danger-color);
+        color: white;
+        padding: 0.15rem 0.4rem;
+        border-radius: 4px;
+        font-weight: 600;
+    }
+
+    /* Spinner animation for upload buttons */
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+
+    .checklist-upload-btn .spin {
+        animation: spin 1s linear infinite;
+    }
+
+    /* Toast Notification System */
+    .toast-container {
+        position: fixed;
+        top: 1.5rem;
+        right: 1.5rem;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        pointer-events: none;
+    }
+
+    .toast {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        background: white;
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15), 0 4px 8px rgba(0, 0, 0, 0.1);
+        min-width: 320px;
+        max-width: 420px;
+        pointer-events: auto;
+        animation: toastSlideIn 0.3s ease-out;
+        border-left: 4px solid;
+    }
+
+    .toast.success {
+        border-left-color: #10b981;
+    }
+
+    .toast.error {
+        border-left-color: #ef4444;
+    }
+
+    .toast.info {
+        border-left-color: #3b82f6;
+    }
+
+    .toast-icon {
+        flex-shrink: 0;
+        width: 20px;
+        height: 20px;
+        margin-top: 0.1rem;
+    }
+
+    .toast-icon.success {
+        color: #10b981;
+    }
+
+    .toast-icon.error {
+        color: #ef4444;
+    }
+
+    .toast-icon.info {
+        color: #3b82f6;
+    }
+
+    .toast-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .toast-title {
+        font-weight: 600;
+        font-size: 0.9rem;
+        margin-bottom: 0.25rem;
+        color: #1f2937;
+    }
+
+    .toast-message {
+        font-size: 0.85rem;
+        color: #6b7280;
+        line-height: 1.4;
+    }
+
+    .toast-close {
+        background: none;
+        border: none;
+        color: #9ca3af;
+        cursor: pointer;
+        padding: 0.25rem;
+        border-radius: 4px;
+        transition: all 0.15s;
+        flex-shrink: 0;
+    }
+
+    .toast-close:hover {
+        background: #f3f4f6;
+        color: #6b7280;
+    }
+
+    @keyframes toastSlideIn {
+        from {
+            opacity: 0;
+            transform: translateX(100%);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    .toast.removing {
+        animation: toastSlideOut 0.3s ease-out forwards;
+    }
+
+    @keyframes toastSlideOut {
+        from {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        to {
+            opacity: 0;
+            transform: translateX(120%);
+        }
+    }
+
+    /* Fade in animation for checklist items */
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .checklist-item {
+        animation: fadeIn 0.4s ease-out backwards;
+    }
+
+    .checklist-item:nth-child(1) { animation-delay: 0.05s; }
+    .checklist-item:nth-child(2) { animation-delay: 0.1s; }
+    .checklist-item:nth-child(3) { animation-delay: 0.15s; }
+    .checklist-item:nth-child(4) { animation-delay: 0.2s; }
+    .checklist-item:nth-child(5) { animation-delay: 0.25s; }
+
+    /* Selected files preview */
+    .selected-files {
+        margin-top: 1rem;
+    }
+
+    .selected-files-title {
+        font-size: 0.875rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+
+    .file-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .file-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background: var(--bg-color);
+        border-radius: 8px;
+        font-size: 0.875rem;
+    }
+
+    .file-item .file-icon {
+        width: 32px;
+        height: 32px;
+        background: var(--primary-color);
+        color: white;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .file-item .file-icon svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .file-item .file-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .file-item .file-name {
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .file-item .file-size {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .file-item .file-remove {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        padding: 0.25rem;
+        border-radius: 4px;
+        transition: color 0.15s, background 0.15s;
+    }
+
+    .file-item .file-remove:hover {
+        color: var(--danger-color);
+        background: rgba(239, 68, 68, 0.1);
+    }
+
+    /* Submit section */
+    .submit-btn {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+
+    .submit-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    /* Progress bar */
+    .upload-progress {
+        display: none;
+        margin-top: 1rem;
+    }
+
+    .upload-progress.active {
+        display: block;
+    }
+
+    .progress-bar {
+        height: 8px;
+        background: var(--border-color);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .progress-bar-fill {
+        height: 100%;
+        background: var(--primary-color);
+        border-radius: 4px;
+        transition: width 0.3s;
+        width: 0%;
+    }
+
+    .progress-text {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        margin-top: 0.5rem;
+        text-align: center;
+    }
+
+    /* Success state */
+    .success-state {
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .success-state .icon-large {
+        width: 72px;
+        height: 72px;
+        margin: 0 auto 1rem;
+        color: var(--success-color);
+    }
+
+    .success-state h2 {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+        color: var(--success-color);
+    }
+
+    .success-state p {
+        color: var(--text-secondary);
+        margin-bottom: 1.5rem;
+    }
+
+    .success-actions {
+        display: flex;
+        gap: 0.75rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    /* Uploaded files section */
+    .uploaded-section {
+        margin-top: 1.5rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .uploaded-section summary {
+        cursor: pointer;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .uploaded-section summary:hover {
+        color: var(--text-primary);
+    }
+
+    .uploaded-list {
+        margin-top: 0.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .uploaded-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        background: var(--bg-color);
+        border-radius: 6px;
+        font-size: 0.8rem;
+    }
+
+    .uploaded-item .icon {
+        color: var(--success-color);
+    }
+
+    /* Resend form */
+    .resend-section {
+        margin-top: 1.5rem;
+        text-align: center;
+    }
+
+    .resend-btn {
+        background: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+
+    .resend-btn:hover {
+        background: var(--primary-dark);
+    }
+
+    .resend-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+        .upload-hero {
+            padding: 1.5rem 1rem;
+        }
+        .upload-hero h1 {
+            font-size: 1.4rem;
+        }
+        .upload-hero .meta {
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .upload-body {
+            padding: 1rem;
+        }
+        .checklist-item {
+            padding: 0.75rem;
+        }
+        .checklist-item-header {
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .checklist-upload-btn {
+            width: 100%;
+            justify-content: center;
+            margin-top: 0.5rem;
+        }
+        .toast-container {
+            top: 0.75rem;
+            right: 0.75rem;
+            left: 0.75rem;
+        }
+        .toast {
+            min-width: auto;
+            width: 100%;
+        }
+    }
+
+    /* Hide by default, JS shows */
+    .js-hidden {
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Toast notification container -->
+<div class="toast-container" id="toastContainer" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<div class="upload-container">
+    {% if error == "invalid" %}
+        {# Invalid or revoked token #}
+        <div class="card" style="border-radius: 16px; overflow: hidden;">
+            <div class="error-state">
+                <svg class="icon-large" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                </svg>
+                <h2>Link ungültig</h2>
+                <p>Dieser Link ist nicht mehr gültig oder wurde zurückgezogen.<br>Bitte kontaktieren Sie uns für einen neuen Link.</p>
+            </div>
+        </div>
+
+    {% elif error == "locked" %}
+        {# Locked due to security (too many attempts) #}
+        <div class="card" style="border-radius: 16px; overflow: hidden;">
+            <div class="error-state">
+                <svg class="icon-large" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                </svg>
+                <h2>Link gesperrt</h2>
+                <p>Dieser Link wurde aus Sicherheitsgründen gesperrt.<br>Bitte kontaktieren Sie uns für einen neuen Link.</p>
+            </div>
+        </div>
+
+    {% elif error == "expired" %}
+        {# Expired token - offer resend #}
+        <div class="card" style="border-radius: 16px; overflow: hidden;">
+            <div class="error-state">
+                <svg class="icon-large" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <h2>Link abgelaufen</h2>
+                <p>Dieser Link ist leider abgelaufen.<br>Fordern Sie einen neuen Link an:</p>
+
+                {% if can_resend and token %}
+                    <div class="resend-section">
+                        <button type="button" class="resend-btn" id="resendBtn" onclick="requestNewLink()">
+                            Neuen Link anfordern
+                        </button>
+                        <p id="resendStatus" style="margin-top: 1rem; font-size: 0.875rem; color: var(--text-secondary);"></p>
+                    </div>
+                {% else %}
+                    <p style="color: var(--text-secondary);">Bitte kontaktieren Sie uns für einen neuen Link.</p>
+                {% endif %}
+            </div>
+        </div>
+
+    {% else %}
+        {# Valid token - show upload form #}
+        <div class="upload-hero">
+            <h1>Dokumente nachreichen</h1>
+            {% if candidate_name %}
+                <p class="greeting">Hallo {{ candidate_name }}!</p>
+            {% endif %}
+
+            <div class="meta">
+                {% if job_title %}
+                    <span class="meta-item">
+                        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                        {{ job_title }}
+                    </span>
+                {% endif %}
+                {% if reference_number %}
+                    <span class="meta-item">
+                        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" /></svg>
+                        Ref. {{ reference_number }}
+                    </span>
+                {% endif %}
+            </div>
+
+            <div class="security-badge{% if hours_remaining and hours_remaining < 12 %} warning{% endif %}">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                Sicherer Link
+                {% if hours_remaining %}
+                    &middot; Gültig noch {{ hours_remaining }} Std.
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="upload-card">
+            <div class="upload-body">
+                {# Documents checklist with inline upload buttons #}
+                {% if doc_items and doc_items|length > 0 %}
+                <details class="docs-checklist" id="docsChecklist" open>
+                    <summary class="docs-checklist-summary">
+                        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+                        <span>Unterlagen-Checkliste</span>
+                        <span class="checklist-counter" id="checklistCounter">
+                            {% set pending_count = doc_items|selectattr('status', 'equalto', 'pending')|list|length %}
+                            {% set received_count = doc_items|selectattr('status', 'equalto', 'received')|list|length %}
+                            <span class="counter-item received">{{ received_count + pending_count }}</span> / <span class="counter-item total">{{ doc_items|length }}</span>
+                        </span>
+                    </summary>
+                    <div class="docs-checklist-body" id="docsChecklistBody">
+                        {% set ns = namespace(current_group=None) %}
+                        {% for doc in doc_items %}
+                            {% if ns.current_group != doc.group %}
+                                {% if not loop.first %}</div>{% endif %}
+                                <div class="checklist-group">
+                                    <div class="checklist-group-title">{{ doc.group }}</div>
+                                {% set ns.current_group = doc.group %}
+                            {% endif %}
+
+                            <div class="checklist-item {{ doc.status }}" data-doc-id="{{ doc.id }}" id="docItem-{{ doc.id }}">
+                                <div class="checklist-item-header">
+                                    {% if doc.status == 'received' %}
+                                        <svg class="checklist-icon received" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                    {% elif doc.status == 'pending' %}
+                                        <svg class="checklist-icon pending" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                    {% else %}
+                                        <svg class="checklist-icon missing" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" /><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01" /></svg>
+                                    {% endif %}
+                                    <span class="checklist-item-title">{{ doc.title }}{% if doc.code %} <span class="checklist-item-code">({{ doc.code }})</span>{% endif %}</span>
+                                    {% if doc.required and doc.status in ['missing', 'wrong'] %}
+                                        <span class="required-badge">Pflicht</span>
+                                    {% endif %}
+                                    {% if doc.status == 'pending' %}
+                                        <span class="pending-badge">Eingereicht</span>
+                                    {% elif doc.status == 'received' %}
+                                        <span class="received-badge">Erhalten</span>
+                                    {% endif %}
+                                    {# Inline upload button for missing/wrong items #}
+                                    {% if doc.status in ['missing', 'wrong'] %}
+                                        <button 
+                                            type="button" 
+                                            class="checklist-upload-btn" 
+                                            data-doc-id="{{ doc.id }}" 
+                                            onclick="triggerInlineUpload(this)" 
+                                            title="Klicken um {{ doc.title }} hochzuladen"
+                                            aria-label="Datei für {{ doc.title }} hochladen">
+                                            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                            </svg>
+                                            Hochladen
+                                        </button>
+                                    {% endif %}
+                                </div>
+                                {% if doc.files and doc.files|length > 0 %}
+                                    <div class="checklist-item-files">
+                                        {% for file in doc.files %}
+                                            <div class="checklist-file">
+                                                <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                                                <span>{{ file.name }}</span>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                                {# Inline progress bar (hidden by default) #}
+                                <div class="checklist-item-progress" id="progress-{{ doc.id }}">
+                                    <div class="mini-progress"><div class="mini-progress-fill"></div></div>
+                                    <span class="mini-progress-text">0%</span>
+                                </div>
+                                {# Inline success message (hidden by default) #}
+                                <div class="checklist-item-uploaded" id="uploaded-{{ doc.id }}">
+                                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                                    <span class="uploaded-filename"></span>
+                                </div>
+                                {# Inline error message (hidden by default) #}
+                                <div class="checklist-item-error" id="error-{{ doc.id }}">
+                                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                                    <span class="error-text"></span>
+                                </div>
+                            </div>
+
+                            {% if loop.last %}</div>{% endif %}
+                        {% endfor %}
+                    </div>
+                </details>
+                {% endif %}
+
+                {# Hidden file input used by inline upload buttons #}
+                <input type="file" id="inlineFileInput" accept=".pdf,.png,.jpg,.jpeg" style="display:none;">
+
+                {# Compact extra upload area for additional/generic documents #}
+                <div class="extra-upload-area" id="extraUploadArea" role="button" tabindex="0" aria-label="Weitere Dokumente hinzufügen">
+                    <div class="extra-upload-label">
+                        <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
+                        <span>Weitere Dokumente hinzufügen</span>
+                    </div>
+                    <div class="extra-upload-hint">PDF, PNG, JPG • Max. 10 MB (PDF) / 5 MB (Bilder) pro Datei • Mehrere Dateien möglich</div>
+                    <input type="file" id="extraFileInput" multiple accept=".pdf,.png,.jpg,.jpeg" aria-label="Weitere Dateien auswählen">
+                </div>
+
+                {# Extra files list + submit #}
+                <div class="selected-files js-hidden" id="extraSelectedFiles" style="margin-top: 1rem;">
+                    <div class="selected-files-title">Weitere Dateien</div>
+                    <div class="file-list" id="extraFileList"></div>
+                    <div style="margin-top: 0.75rem;">
+                        <button type="button" class="btn btn-primary submit-btn" id="extraSubmitBtn" onclick="uploadExtraFiles()" disabled>
+                            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                            Hochladen
+                        </button>
+                    </div>
+                </div>
+
+                {# Progress for extra upload #}
+                <div class="upload-progress" id="extraUploadProgress">
+                    <div class="progress-bar">
+                        <div class="progress-bar-fill" id="extraProgressFill"></div>
+                    </div>
+                    <div class="progress-text" id="extraProgressText">Wird hochgeladen...</div>
+                </div>
+
+                {# Success state for extra upload (hidden) #}
+                <div class="success-state js-hidden" id="extraSuccessState" style="padding: 1.5rem;">
+                    <svg class="icon-large" style="width:48px;height:48px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <h2 style="font-size:1.2rem;">Hochgeladen!</h2>
+                    <p id="extraSuccessMessage" style="font-size:0.875rem;">Dateien erfolgreich übermittelt.</p>
+                    <button type="button" class="btn btn-outline" style="font-size:0.875rem;" onclick="resetExtraUpload()">Weitere hinzufügen</button>
+                </div>
+
+                {# Already uploaded files #}
+                <details class="uploaded-section" id="uploadedSection" {% if not uploaded_files or uploaded_files|length == 0 %}style="display:none;"{% endif %}>
+                    <summary>
+                        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+                        <span id="uploadedSectionTitle">Bereits eingereichte Dokumente (<span id="uploadedCount">{{ uploaded_files|length if uploaded_files else 0 }}</span>)</span>
+                    </summary>
+                    <div class="uploaded-list" id="uploadedList">
+                        {% for file in uploaded_files %}
+                            <div class="uploaded-item">
+                                <svg class="icon" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                                {{ file.name }}
+                            </div>
+                        {% endfor %}
+                    </div>
+                </details>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    const token = {{ token|tojson if token else 'null' }};
+    const uploadUrl = token ? `/r/${token}/upload` : null;
+
+    if (!uploadUrl) return;
+
+    // ---------- Toast Notification System ----------
+    const toastContainer = document.getElementById('toastContainer');
+    
+    function showToast(type, title, message, duration = 5000) {
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        
+        const iconSvg = {
+            success: '<svg class="toast-icon success" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>',
+            error: '<svg class="toast-icon error" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>',
+            info: '<svg class="toast-icon info" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>'
+        };
+        
+        toast.innerHTML = `
+            ${iconSvg[type] || iconSvg.info}
+            <div class="toast-content">
+                <div class="toast-title">${escapeHtml(title)}</div>
+                <div class="toast-message">${escapeHtml(message)}</div>
+            </div>
+            <button type="button" class="toast-close" onclick="this.closest('.toast').remove()" aria-label="Schließen">
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+        `;
+        
+        toastContainer.appendChild(toast);
+        
+        if (duration > 0) {
+            setTimeout(() => {
+                toast.classList.add('removing');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+        
+        return toast;
+    }
+
+    // ---------- Helpers ----------
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function formatSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function parseError(xhr) {
+        let msg = 'Fehler beim Hochladen.';
+        try {
+            const err = JSON.parse(xhr.responseText);
+            if (err.error === 'invalid_file_type') msg = 'Ungültiger Dateityp. Bitte laden Sie nur PDF, PNG oder JPG Dateien hoch.';
+            else if (err.error === 'file_too_large') {
+                // Show specific limit based on file type
+                const maxMB = err.maxBytes ? (err.maxBytes / (1024*1024)).toFixed(0) : '10';
+                msg = `Datei zu groß. Maximum ist ${maxMB} MB pro Datei (PDF: 10 MB, Bilder: 5 MB).`;
+            }
+            else if (err.error === 'too_many_files') msg = 'Zu viele Dateien. Maximum: ' + (err.max || 10) + ' Dateien.';
+            else if (err.error === 'quota_exceeded') msg = 'Speicherkontingent überschritten. Bitte kontaktieren Sie uns.';
+            else if (err.error === 'invalid_or_expired') msg = 'Ihr Link ist abgelaufen. Bitte fordern Sie einen neuen an.';
+        } catch {}
+        return msg;
+    }
+
+    // ---------- Inline upload per checklist item ----------
+    const inlineFileInput = document.getElementById('inlineFileInput');
+    let activeDocId = null;
+
+    window.triggerInlineUpload = function(btn) {
+        activeDocId = btn.getAttribute('data-doc-id');
+        inlineFileInput.value = '';
+        inlineFileInput.click();
+    };
+
+    if (inlineFileInput) {
+        inlineFileInput.addEventListener('change', () => {
+            if (!inlineFileInput.files || !inlineFileInput.files.length || !activeDocId) return;
+            uploadFileForDoc(activeDocId, inlineFileInput.files[0]);
+            activeDocId = null;
+        });
+    }
+
+    function uploadFileForDoc(docId, file) {
+        const itemEl = document.getElementById('docItem-' + docId);
+        const progressEl = document.getElementById('progress-' + docId);
+        const uploadedEl = document.getElementById('uploaded-' + docId);
+        const errorEl = document.getElementById('error-' + docId);
+        const btn = itemEl ? itemEl.querySelector('.checklist-upload-btn') : null;
+
+        if (!itemEl) return;
+
+        // Get document title for feedback
+        const docTitle = itemEl.querySelector('.checklist-item-title')?.textContent?.trim() || 'Dokument';
+
+        // Reset previous states
+        if (errorEl) { errorEl.classList.remove('active'); }
+        if (uploadedEl) { uploadedEl.classList.remove('active'); }
+
+        // Show progress
+        if (progressEl) {
+            progressEl.classList.add('active');
+            progressEl.querySelector('.mini-progress-fill').style.width = '0%';
+            progressEl.querySelector('.mini-progress-text').textContent = '0%';
+        }
+        if (btn) { 
+            btn.classList.add('uploading');
+            btn.disabled = true;
+            btn.innerHTML = '<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" class="spin"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg> Lädt...';
+            btn.setAttribute('aria-busy', 'true');
+        }
+
+        const formData = new FormData();
+        formData.append('files', file);
+        formData.append('doc_node_id', docId);
+        formData.append('document_type', 'certificate');
+
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable && progressEl) {
+                const pct = Math.round((e.loaded / e.total) * 100);
+                progressEl.querySelector('.mini-progress-fill').style.width = pct + '%';
+                progressEl.querySelector('.mini-progress-text').textContent = pct + '%';
+            }
+        });
+
+        xhr.addEventListener('load', () => {
+            if (progressEl) progressEl.classList.remove('active');
+
+            if (xhr.status >= 200 && xhr.status < 300) {
+                const resp = JSON.parse(xhr.responseText);
+
+                // Show success toast
+                showToast('success', 'Erfolgreich hochgeladen', `${docTitle} wurde erfolgreich hochgeladen.`, 4000);
+
+                // Show success inline
+                if (uploadedEl) {
+                    uploadedEl.querySelector('.uploaded-filename').textContent = file.name;
+                    uploadedEl.classList.add('active');
+                }
+
+                // Update button to show done
+                if (btn) {
+                    btn.classList.remove('uploading');
+                    btn.classList.add('success');
+                    btn.disabled = true;
+                    btn.innerHTML = '<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg> Erledigt';
+                    btn.setAttribute('aria-busy', 'false');
+                    btn.setAttribute('aria-label', docTitle + ' erfolgreich hochgeladen');
+                }
+
+                // Update item styling
+                if (itemEl) {
+                    itemEl.classList.remove('missing', 'wrong');
+                    itemEl.classList.add('pending');
+                    // Update the icon
+                    const iconEl = itemEl.querySelector('.checklist-icon');
+                    if (iconEl) {
+                        iconEl.outerHTML = '<svg class="checklist-icon pending" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>';
+                    }
+                    // Remove required badge if present
+                    const reqBadge = itemEl.querySelector('.required-badge');
+                    if (reqBadge) reqBadge.remove();
+                    // Add pending badge if not present
+                    const header = itemEl.querySelector('.checklist-item-header');
+                    if (header && !header.querySelector('.pending-badge')) {
+                        const badge = document.createElement('span');
+                        badge.className = 'pending-badge';
+                        badge.textContent = 'Eingereicht';
+                        header.insertBefore(badge, btn);
+                    }
+                }
+
+                // Update counter
+                updateChecklistCounter();
+
+                // Update uploaded files list
+                if (resp.all_uploaded_files) updateUploadedFilesList(resp.all_uploaded_files);
+            } else {
+                const msg = parseError(xhr);
+                
+                // Show error toast
+                showToast('error', 'Upload fehlgeschlagen', msg, 6000);
+                
+                if (errorEl) {
+                    errorEl.querySelector('.error-text').textContent = msg;
+                    errorEl.classList.add('active');
+                }
+                if (btn) {
+                    btn.classList.remove('uploading');
+                    btn.disabled = false;
+                    btn.innerHTML = '<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg> Hochladen';
+                    btn.setAttribute('aria-busy', 'false');
+                }
+            }
+        });
+
+        xhr.addEventListener('error', () => {
+            if (progressEl) progressEl.classList.remove('active');
+            
+            const errorMsg = 'Netzwerkfehler. Bitte überprüfen Sie Ihre Internetverbindung.';
+            
+            // Show error toast
+            showToast('error', 'Verbindungsfehler', errorMsg, 6000);
+            
+            if (errorEl) {
+                errorEl.querySelector('.error-text').textContent = errorMsg;
+                errorEl.classList.add('active');
+            }
+            if (btn) {
+                btn.classList.remove('uploading');
+                btn.disabled = false;
+                btn.innerHTML = '<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg> Hochladen';
+                btn.setAttribute('aria-busy', 'false');
+            }
+        });
+
+        xhr.open('POST', uploadUrl);
+        xhr.send(formData);
+    }
+
+    function updateChecklistCounter() {
+        const counter = document.getElementById('checklistCounter');
+        const body = document.getElementById('docsChecklistBody');
+        if (!counter || !body) return;
+
+        const allItems = body.querySelectorAll('.checklist-item');
+        const doneItems = body.querySelectorAll('.checklist-item.pending, .checklist-item.received');
+        counter.innerHTML = `<span class="counter-item received">${doneItems.length}</span> / <span class="counter-item total">${allItems.length}</span>`;
+    }
+
+    // ---------- Extra upload area (generic documents) ----------
+    const extraFileInput = document.getElementById('extraFileInput');
+    const extraSelectedFiles = document.getElementById('extraSelectedFiles');
+    const extraFileList = document.getElementById('extraFileList');
+    const extraSubmitBtn = document.getElementById('extraSubmitBtn');
+    const extraUploadProgress = document.getElementById('extraUploadProgress');
+    const extraProgressFill = document.getElementById('extraProgressFill');
+    const extraProgressText = document.getElementById('extraProgressText');
+    const extraSuccessState = document.getElementById('extraSuccessState');
+    const extraSuccessMessage = document.getElementById('extraSuccessMessage');
+    const extraUploadArea = document.getElementById('extraUploadArea');
+
+    let extraFiles = [];
+
+    if (extraFileInput && extraUploadArea) {
+        extraFileInput.addEventListener('change', () => {
+            for (const f of extraFileInput.files) {
+                if (!extraFiles.find(x => x.name === f.name && x.size === f.size)) {
+                    extraFiles.push(f);
+                }
+            }
+            renderExtraFileList();
+        });
+
+        // Keyboard accessibility for extra upload area
+        extraUploadArea.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                extraFileInput.click();
+            }
+        });
+    }
+
+    function renderExtraFileList() {
+        if (!extraFileList || !extraSelectedFiles || !extraSubmitBtn) return;
+
+        if (extraFiles.length === 0) {
+            extraSelectedFiles.classList.add('js-hidden');
+            extraSubmitBtn.disabled = true;
+            return;
+        }
+
+        extraSelectedFiles.classList.remove('js-hidden');
+        extraSubmitBtn.disabled = false;
+
+        extraFileList.innerHTML = extraFiles.map((f, i) => `
+            <div class="file-item">
+                <div class="file-icon">
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                </div>
+                <div class="file-info">
+                    <div class="file-name">${escapeHtml(f.name)}</div>
+                    <div class="file-size">${formatSize(f.size)}</div>
+                </div>
+                <button type="button" class="file-remove" onclick="window.removeExtraFile(${i})" title="Entfernen">
+                    <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+        `).join('');
+    }
+
+    window.removeExtraFile = function(index) {
+        extraFiles.splice(index, 1);
+        renderExtraFileList();
+    };
+
+    window.uploadExtraFiles = function() {
+        if (!extraFiles.length || !uploadUrl) return;
+
+        const formData = new FormData();
+        extraFiles.forEach(f => formData.append('files', f));
+        formData.append('document_type', 'other');
+
+        // Hide form, show progress
+        if (extraUploadArea) extraUploadArea.style.display = 'none';
+        if (extraSelectedFiles) extraSelectedFiles.style.display = 'none';
+        if (extraUploadProgress) extraUploadProgress.classList.add('active');
+
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable && extraProgressFill && extraProgressText) {
+                const pct = Math.round((e.loaded / e.total) * 100);
+                extraProgressFill.style.width = pct + '%';
+                extraProgressText.textContent = `${pct}% hochgeladen...`;
+            }
+        });
+
+        xhr.addEventListener('load', () => {
+            if (extraUploadProgress) extraUploadProgress.classList.remove('active');
+
+            if (xhr.status >= 200 && xhr.status < 300) {
+                const resp = JSON.parse(xhr.responseText);
+                const count = resp.count || extraFiles.length;
+                
+                // Show success toast
+                showToast('success', 'Upload erfolgreich', `${count} weitere Datei${count !== 1 ? 'en' : ''} erfolgreich hochgeladen.`, 4000);
+                
+                if (extraSuccessState) {
+                    extraSuccessState.classList.remove('js-hidden');
+                    if (extraSuccessMessage) extraSuccessMessage.textContent = `${count} Datei${count !== 1 ? 'en' : ''} erfolgreich hochgeladen.`;
+                }
+                if (resp.all_uploaded_files) updateUploadedFilesList(resp.all_uploaded_files);
+                extraFiles = [];
+            } else {
+                const msg = parseError(xhr);
+                showToast('error', 'Upload fehlgeschlagen', msg, 6000);
+                resetExtraUploadUI();
+            }
+        });
+
+        xhr.addEventListener('error', () => {
+            if (extraUploadProgress) extraUploadProgress.classList.remove('active');
+            showToast('error', 'Verbindungsfehler', 'Netzwerkfehler. Bitte überprüfen Sie Ihre Internetverbindung.', 6000);
+            resetExtraUploadUI();
+        });
+
+        xhr.open('POST', uploadUrl);
+        xhr.send(formData);
+    };
+
+    function resetExtraUploadUI() {
+        if (extraUploadArea) extraUploadArea.style.display = '';
+        if (extraSelectedFiles) extraSelectedFiles.style.display = '';
+    }
+
+    window.resetExtraUpload = function() {
+        extraFiles = [];
+        if (extraFileInput) extraFileInput.value = '';
+        renderExtraFileList();
+        if (extraSuccessState) extraSuccessState.classList.add('js-hidden');
+        resetExtraUploadUI();
+        if (extraProgressFill) extraProgressFill.style.width = '0%';
+    };
+
+    // ---------- Shared: update uploaded files list ----------
+    function updateUploadedFilesList(uploadedFiles) {
+        const section = document.getElementById('uploadedSection');
+        const list = document.getElementById('uploadedList');
+        const countEl = document.getElementById('uploadedCount');
+
+        if (!section || !list) return;
+
+        if (!uploadedFiles || uploadedFiles.length === 0) {
+            section.style.display = 'none';
+            return;
+        }
+
+        section.style.display = '';
+        section.open = true;
+        if (countEl) countEl.textContent = uploadedFiles.length;
+
+        let html = '';
+        for (const file of uploadedFiles) {
+            html += `
+                <div class="uploaded-item">
+                    <svg class="icon" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                    ${escapeHtml(file.name)}
+                </div>
+            `;
+        }
+        list.innerHTML = html;
+    }
+})();
+
+// Resend link (for expired tokens)
+async function requestNewLink() {
+    const btn = document.getElementById('resendBtn');
+    const status = document.getElementById('resendStatus');
+    const token = {{ token|tojson if token else 'null' }};
+
+    if (!token) return;
+
+    btn.disabled = true;
+    btn.textContent = 'Wird gesendet...';
+    status.textContent = '';
+
+    try {
+        const resp = await fetch(`/r/${token}/resend`, { method: 'POST' });
+        if (resp.ok) {
+            status.style.color = 'var(--success-color)';
+            status.textContent = 'Ein neuer Link wurde an Ihre E-Mail gesendet!';
+        } else {
+            const data = await resp.json().catch(() => ({}));
+            status.style.color = 'var(--danger-color)';
+            if (resp.status === 429) {
+                status.textContent = 'Zu viele Versuche. Bitte warten Sie einen Moment.';
+            } else {
+                status.textContent = 'Fehler beim Senden. Bitte kontaktieren Sie uns.';
+            }
+            btn.disabled = false;
+            btn.textContent = 'Neuen Link anfordern';
+        }
+    } catch (e) {
+        status.style.color = 'var(--danger-color)';
+        status.textContent = 'Netzwerkfehler. Bitte erneut versuchen.';
+        btn.disabled = false;
+        btn.textContent = 'Neuen Link anfordern';
+    }
+}
+</script>
+{% endblock %}
+
+ 
+ 

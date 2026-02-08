@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Benutzer bearbeiten – {{ user_row.email }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="flex-between">
+    <div>
+      <h1>Benutzer bearbeiten</h1>
+      <p style="color: var(--text-secondary);">{{ user_row.email }}</p>
+    </div>
+    <div class="btn-group">
+      <a href="/admin/users" class="btn btn-outline">← Benutzer</a>
+      <a href="/admin/" class="btn btn-outline">Dashboard</a>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2 class="card-title">Profil</h2>
+  <form method="post" action="/admin/users/{{ user_row.id }}/edit">
+    <div class="form-row">
+      <div class="form-group">
+        <label>E-Mail *</label>
+        <input name="email" type="email" value="{{ user_row.email }}" required>
+      </div>
+      <div class="form-group">
+        <label>Rolle</label>
+        <select name="role">
+          <option value="recruiter" {% if user_row.role == 'recruiter' %}selected{% endif %}>Recruiter</option>
+          <option value="viewer" {% if user_row.role == 'viewer' %}selected{% endif %}>Viewer</option>
+          <option value="admin" {% if user_row.role == 'admin' %}selected{% endif %}>Admin</option>
+        </select>
+      </div>
+    </div>
+
+    <details class="details-block" style="margin-top: 0.75rem;">
+      <summary class="details-summary">Passwort zurücksetzen <span class="details-summary-meta">optional</span></summary>
+      <div style="padding: 1rem 1.25rem;">
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Neues Passwort</label>
+            <input name="new_password" type="password" minlength="6" placeholder="mind. 6 Zeichen">
+            <p class="wf-help" style="margin-top:0.4rem;">Leer lassen, wenn das Passwort unverändert bleiben soll.</p>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <div class="wf-actions-bar" style="margin-top: 1rem;">
+      <div class="wf-dirty" style="color: var(--text-secondary);">ID: {{ user_row.id }}</div>
+      <div class="btn-group" style="margin:0;">
+        <button type="submit" class="btn btn-primary">Speichern</button>
+        <a href="/admin/users" class="btn btn-outline">Zurück</a>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h2 class="card-title">Löschen (Gefahrenzone)</h2>
+  <p class="wf-help" style="margin-top:0.25rem;">
+    Löschen ist nur möglich, wenn Abhängigkeiten sauber behandelt werden. Du kannst optional einen Ersatz-Benutzer wählen,
+    dem Zuweisungen/Owner/Benachrichtigungen übertragen werden.
+  </p>
+
+  <div class="wf-step-card" style="margin-top: 0.75rem;">
+    <div class="wf-step-header" style="margin-bottom: 0;">
+      <div class="wf-step-title">
+        <span class="wf-pill">Abhängigkeiten</span>
+        <span class="wf-step-name-preview" title="">{{ user_row.email }}</span>
+      </div>
+    </div>
+    <div style="margin-top: 0.75rem; display:grid; gap:0.35rem; color: var(--text-secondary); font-size: 0.9rem;">
+      <div>Workflow-Step Owner: <strong style="color:var(--text-primary)">{{ impact.workflow_step_owner }}</strong></div>
+      <div>Workflow-Step Fallback: <strong style="color:var(--text-primary)">{{ impact.workflow_step_fallback }}</strong></div>
+      <div>Assigned Step-Instanzen: <strong style="color:var(--text-primary)">{{ impact.step_instances_assigned }}</strong></div>
+      <div>Doc-Updates (Audit): <strong style="color:var(--text-primary)">{{ impact.doc_status_updated }}</strong></div>
+      <div>Dokument-Links (Audit): <strong style="color:var(--text-primary)">{{ impact.attachment_links }}</strong></div>
+      <div>Notizen (Autor): <strong style="color:var(--text-primary)">{{ impact.notes_authored }}</strong></div>
+      <div>Benachrichtigungen: <strong style="color:var(--text-primary)">{{ impact.notifications }}</strong></div>
+    </div>
+  </div>
+
+  <form method="post" action="/admin/users/{{ user_row.id }}/delete" style="margin-top: 1rem;">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Ersatz-Benutzer (optional, aber nötig bei Benachrichtigungen)</label>
+        <select name="replacement_user_id">
+          <option value="">— kein Ersatz —</option>
+          {% for u in replacements %}
+            <option value="{{ u.id }}">{{ u.email }} ({{ u.role }})</option>
+          {% endfor %}
+        </select>
+        <p class="wf-help" style="margin-top:0.4rem;">
+          Wenn ausgewählt, werden Zuweisungen/Owner/Benachrichtigungen auf diese Person übertragen.
+        </p>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-danger" onclick="return confirm('Benutzer wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.')">
+      Benutzer löschen
+    </button>
+  </form>
+</div>
+{% endblock %}
+

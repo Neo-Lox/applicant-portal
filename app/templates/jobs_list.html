@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+
+{% block title %}Stellenangebote{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Stellenangebote</h1>
+    <p>Entdecken Sie unsere offenen Positionen bei Neo lox</p>
+</div>
+
+<div class="filters">
+    <form method="get">
+        <div class="form-group">
+            <label for="q">Stelle suchen</label>
+            <input id="q" name="q" type="text" value="{{ q }}" placeholder="z.B. Triebfahrzeugführer, Lokführer, Disponent">
+        </div>
+
+        <div class="form-group">
+            <label for="location">Standort</label>
+            <select id="location" name="location">
+                <option value="">Alle Standorte</option>
+                {% for loc in location_options %}
+                    <option value="{{ loc }}" {% if location == loc %}selected{% endif %}>{{ loc }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="type">Job-Typ</label>
+            <select id="type" name="type">
+                <option value="">Alle Typen</option>
+                {% for t in type_options %}
+                    <option value="{{ t }}" {% if employment_type == t %}selected{% endif %}>{{ t }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <button type="submit" class="btn btn-primary">Filtern</button>
+            <a href="/" class="btn btn-outline">Zurücksetzen</a>
+        </div>
+    </form>
+</div>
+
+{% if not jobs %}
+    <div class="card">
+        <p class="text-center">Keine passenden Stellen gefunden.</p>
+        <p class="text-center" style="color: var(--text-secondary); margin-top: 0.5rem;">
+            Tipp: Filter zurücksetzen oder eine andere Suche probieren.
+        </p>
+    </div>
+{% else %}
+    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+        {{ results_count }} Ergebnis{{ "" if results_count == 1 else "se" }}
+    </p>
+    <div class="list">
+        {% for job in jobs %}
+            {% set panel_id = "job-panel-" ~ job.id %}
+            <div class="list-item job-card" aria-expanded="false">
+                <button class="job-card-header" type="button" aria-controls="{{ panel_id }}" aria-expanded="false">
+                    <div>
+                        <div class="job-card-title">{{ job.title }}</div>
+                        <div class="job-card-meta">
+                            {% if job.location %}<span>{{ icon("location") }} {{ job.location }}</span>{% endif %}
+                            {% if job.department %}<span>{{ icon("building") }} {{ job.department }}</span>{% endif %}
+                            {% if job.employment_type %}<span>{{ icon("clock") }} {{ job.employment_type }}</span>{% endif %}
+                        </div>
+                    </div>
+                    <div class="job-card-chevron">{{ icon("chevronDown", 18, "icon") }}</div>
+                </button>
+
+                <div id="{{ panel_id }}" class="job-card-panel" hidden>
+                    {% if job.description %}
+                        <p class="job-description job-description--teaser">{{ job.description | truncate(240, True, "…") }}</p>
+                    {% else %}
+                        <p style="color: var(--text-secondary);">Keine Beschreibung vorhanden.</p>
+                    {% endif %}
+
+                    <div class="job-card-actions">
+                        <a class="btn btn-primary" href="/jobs/{{ job.id }}#apply">Jetzt bewerben</a>
+                        <a class="btn btn-outline" href="/jobs/{{ job.id }}/details">Zur Detailansicht</a>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% endif %}
+
+<script>
+(() => {
+  const cards = Array.from(document.querySelectorAll('.job-card'));
+  function closeAll(except) {
+    for (const card of cards) {
+      if (card === except) continue;
+      const btn = card.querySelector('.job-card-header');
+      const panelId = btn?.getAttribute('aria-controls');
+      const panel = panelId ? document.getElementById(panelId) : null;
+      card.setAttribute('aria-expanded', 'false');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+      if (panel) panel.hidden = true;
+    }
+  }
+  for (const card of cards) {
+    const btn = card.querySelector('.job-card-header');
+    const panelId = btn?.getAttribute('aria-controls');
+    const panel = panelId ? document.getElementById(panelId) : null;
+    if (!btn || !panel) continue;
+    btn.addEventListener('click', () => {
+      const expanded = btn.getAttribute('aria-expanded') === 'true';
+      closeAll(card);
+      const next = !expanded;
+      card.setAttribute('aria-expanded', String(next));
+      btn.setAttribute('aria-expanded', String(next));
+      panel.hidden = !next;
+    });
+  }
+})();
+</script>
+{% endblock %}

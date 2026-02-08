@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Unterlagenliste – {{ job.title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="flex-between">
+    <div>
+      <h1>Unterlagenliste</h1>
+      <p style="color: var(--text-secondary);">{{ job.title }}</p>
+    </div>
+    <div class="btn-group">
+      <a href="/admin/jobs" class="btn btn-outline">← Jobs</a>
+      <form method="post" action="/admin/jobs/{{ job.id }}/doc-tree/seed-tfv" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-secondary">TfV Vorlage importieren</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2 class="card-title">Neuen Eintrag hinzufügen</h2>
+  <form method="post" action="/admin/jobs/{{ job.id }}/doc-tree/add">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Typ</label>
+        <select name="kind">
+          <option value="folder">Ordner</option>
+          <option value="item" selected>Dokument</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Parent ID (optional)</label>
+        <input name="parent_id" type="text" placeholder="z.B. 12">
+      </div>
+      <div class="form-group">
+        <label>Code (optional)</label>
+        <input name="code" type="text" placeholder="z.B. 01">
+      </div>
+      <div class="form-group">
+        <label>Sortierung</label>
+        <input name="sort_order" type="number" value="10">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Titel</label>
+        <input name="title" type="text" required>
+      </div>
+      <div class="form-group">
+        <label style="display:flex; align-items:center; cursor:pointer;">
+          <input type="checkbox" name="required">
+          <span style="margin-left:0.5rem;">Pflicht (nur Dokument)</span>
+        </label>
+      </div>
+    </div>
+    <button class="btn btn-primary" type="submit">Hinzufügen</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2 class="card-title">Aktuelle Struktur</h2>
+  <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+    Tipp: Löschen bitte bottom-up (Kinder vor Eltern). Parent/ID siehst du in der Liste.
+  </p>
+  <div class="list">
+    {% for n in nodes %}
+      <div class="list-item">
+        <div class="flex-between">
+          <div>
+            <p style="margin:0; font-weight:700;">
+              [{{ n.id }}] {% if n.parent_id %}↳{% endif %} {{ n.code or "" }} {{ n.title }}
+              {% if n.kind == "folder" %}<span class="badge badge-in-progress" style="margin-left:0.5rem;">Ordner</span>{% endif %}
+              {% if n.kind == "item" and n.required %}<span class="badge badge-new" style="margin-left:0.5rem;">Pflicht</span>{% endif %}
+            </p>
+            <p style="margin:0.25rem 0 0; color: var(--text-secondary); font-size: 0.875rem;">
+              parent_id={{ n.parent_id or "-" }} • sort={{ n.sort_order }}
+            </p>
+          </div>
+          <form method="post" action="/admin/jobs/{{ job.id }}/doc-tree/{{ n.id }}/delete" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline btn-sm">Löschen</button>
+          </form>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+

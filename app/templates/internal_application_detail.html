@@ -1,0 +1,782 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+
+{% block title %}Bewerbung {{ application.reference_number or application.id }}{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+{% endblock %}
+
+{% block content %}
+{% if not application %}
+    <div class="empty-state">
+        <div class="empty-state-icon">{{ icon("x") }}</div>
+        <h3>Bewerbung nicht gefunden</h3>
+        <p>Die angeforderte Bewerbung existiert nicht oder wurde gelöscht.</p>
+        <a href="/internal/applications" class="btn btn-primary">Zurück zur Übersicht</a>
+    </div>
+{% else %}
+    {# Sticky Header #}
+    <div class="detail-header">
+        <div class="detail-header-left">
+            <a href="/internal/applications" class="back-link">
+                {{ icon("chevronLeft") }} Alle Bewerbungen
+            </a>
+            <div class="detail-breadcrumb">
+                Bewerbungen <span class="crumb-sep">→</span> <strong>{{ application.reference_number or ('#' ~ application.id) }}</strong>
+            </div>
+            <div class="detail-title-row">
+                <h1 class="detail-title">{{ application.reference_number or ('#' ~ application.id) }}</h1>
+                {% set status = status_meta.get(application.status, {'label': application.status, 'badge': 'in-progress'}) %}
+                <span class="badge badge-{{ status.badge }} badge-lg">{{ status.label }}</span>
+            </div>
+            <div class="detail-subtitle">
+                {{ job.title if job else 'Unbekannter Job' }}
+                {% if job and job.location %}
+                    <span class="detail-location">{{ icon("mapPin") }} {{ job.location }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="detail-header-actions">
+            {# Only show final decision when workflow has no active step #}
+            {% if (not current_step_data) and can_manage_application and application.status not in ['rejected', 'accepted', 'completed'] %}
+                <form id="rejectForm" method="post" action="/internal/applications/{{ application.id }}/reject" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input id="rejectReason" type="hidden" name="reason" value="">
+                    <button type="button" class="btn btn-outline btn-sm" onclick="rejectWithReason()">{{ icon("x") }} Ablehnen</button>
+                </form>
+                <form method="post" action="/internal/applications/{{ application.id }}/accept" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-success btn-sm">{{ icon("check") }} Annehmen</button>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+
+    {# Workflow Progress Bar #}
+    <div class="progress-bar-container">
+        <div class="progress-bar">
+            {% for instance, step in steps %}
+                {% set is_done = instance.state == 'done' %}
+                {% set is_active = instance.state == 'open' and instance.id == (current_step_data.instance.id if current_step_data else None) %}
+                {% set step_owner = users_by_id.get(step.owner_user_id) if step.owner_user_id else None %}
+                <div class="progress-step {% if is_done %}done{% elif is_active %}active{% else %}pending{% endif %}">
+                    <div class="progress-step-indicator">
+                        {% if is_done %}
+                            {{ icon("check") }}
+                        {% else %}
+                            {{ loop.index }}
+                        {% endif %}
+                    </div>
+                    <div class="progress-step-label">
+                        <div>{{ step.name }}</div>
+                        <div style="font-size:0.75rem; color: var(--text-secondary); margin-top:0.15rem;">
+                            {% if step_owner %}
+                                {{ icon("user") }} {{ step_owner.email.split('@')[0] }}
+                            {% else %}
+                                {{ icon("user") }} —
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% if not loop.last %}
+                    <div class="progress-connector {% if is_done %}done{% endif %}"></div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+
+    {# Two Column Layout #}
+    <div class="detail-grid">
+        {# Left Column - Info #}
+        <div class="detail-left">
+            {# Candidate Card #}
+            <div class="info-card">
+                <div class="info-card-header">
+                    <h3>{{ icon("user") }} Kandidat</h3>
+                </div>
+                <div class="info-card-body">
+                    <div class="candidate-name">{{ candidate.name }}</div>
+                    <div class="candidate-contact">
+                        {% if candidate.email %}
+                            <a href="mailto:{{ candidate.email }}" class="contact-item">
+                                {{ icon("mail") }} {{ candidate.email }}
+                            </a>
+                        {% endif %}
+                        {% if candidate.phone %}
+                            <a href="tel:{{ candidate.phone }}" class="contact-item">
+                                {{ icon("phone") }} {{ candidate.phone }}
+                            </a>
+                        {% endif %}
+                    </div>
+                    {% if candidate.address %}
+                        <div class="candidate-address">
+                            {{ icon("mapPin") }} {{ candidate.address }}
+                        </div>
+                    {% endif %}
+                    {% if candidate.earliest_start_date %}
+                        <div class="candidate-start">
+                            {{ icon("calendar") }} Frühester Start: {{ candidate.earliest_start_date.strftime('%d.%m.%Y') if candidate.earliest_start_date else '' }}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {# Attachments Card #}
+            <div class="info-card">
+                <div class="info-card-header">
+                    <h3>{{ icon("file") }} Unterlagen</h3>
+                    <span class="info-card-count">{{ attachments|length }}</span>
+                </div>
+                <div class="info-card-body">
+                    {% if attachments %}
+                        <div class="attachments-list">
+                            {% for attachment in attachments %}
+                                <div class="attachment-item">
+                                    <div class="attachment-info">
+                                        <span class="attachment-name">{{ attachment.file_name or "Unbenannt" }}</span>
+                                        <span class="attachment-type">{{ attachment.file_type or "unbekannt" }}</span>
+                                    </div>
+                                    <a href="/internal/applications/{{ application.id }}/attachments/{{ attachment.id }}/download" class="btn btn-outline btn-xs">
+                                        {{ icon("download") }}
+                                    </a>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="no-data">Keine Unterlagen vorhanden</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            {# Timeline Card #}
+            <div class="info-card">
+                <div class="info-card-header">
+                    <h3>{{ icon("clock") }} Timeline</h3>
+                </div>
+                <div class="info-card-body">
+                    {% if timeline %}
+                        <div class="timeline">
+                            {% for entry in timeline[:10] %}
+                                <div class="timeline-item">
+                                    <div class="timeline-dot {% if entry.type == 'step' %}timeline-dot-step{% endif %}"></div>
+                                    <div class="timeline-content">
+                                        <div class="timeline-title">{{ entry.title }}</div>
+                                        {% if entry.actor %}
+                                            <div class="timeline-meta">von {{ entry.actor }}</div>
+                                        {% endif %}
+                                        {% if entry.result %}
+                                            {% if entry.type == 'doc' %}
+                                                <div class="timeline-result">Status: {{ entry.result }}</div>
+                                            {% else %}
+                                                <div class="timeline-result">Ergebnis: {{ entry.result }}</div>
+                                            {% endif %}
+                                        {% endif %}
+                                        {% if entry.text %}
+                                            <div class="timeline-text">{{ entry.text }}</div>
+                                        {% endif %}
+                                        <div class="timeline-time">{{ entry.ts.strftime('%d.%m.%Y %H:%M') if entry.ts else '' }}</div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="no-data">Keine Einträge</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            {# Add Note #}
+            <div class="info-card">
+                <div class="info-card-header">
+                    <h3>{{ icon("edit") }} Notiz</h3>
+                </div>
+                <div class="info-card-body">
+                    {% if user.role != "viewer" %}
+                        <form method="post" action="/internal/applications/{{ application.id }}/notes">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <div class="form-group" style="margin-bottom: 0.75rem;">
+                                <textarea name="text" placeholder="Notiz eingeben..." rows="2" required></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-sm">Speichern</button>
+                        </form>
+                    {% else %}
+                        <p class="no-data" style="margin:0;">
+                            {{ icon("lock") }} Viewer-Zugriff ist nur lesend.
+                        </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        {# Right Column - Current Step Actions #}
+        <div class="detail-right">
+            <a id="next"></a>
+            {% if current_step_data %}
+                {% set instance = current_step_data.instance %}
+                {% set step = current_step_data.step %}
+                {% set fallback_ids = (step.fallback_users | map(attribute='id') | list) if step.fallback_users else [] %}
+                {% set can_act = (user.role == "admin" or step.owner_user_id == user.id or user.id in fallback_ids) and (user.role != "viewer") %}
+
+                <div class="action-card {% if can_act %}action-card-active{% endif %}">
+                    <div class="action-card-header">
+                        <div>
+                            <div class="action-card-badge">Was ist jetzt zu tun?</div>
+                            <h2 class="action-card-title">{{ step.name }}</h2>
+                        </div>
+                        {% if can_act %}
+                            <span class="badge badge-success">Du bist verantwortlich</span>
+                        {% else %}
+                            <span class="badge badge-waiting">Kein Zugriff</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="action-card-body">
+                        {% if can_act %}
+                            <div class="btn-group" style="margin-bottom: 0.75rem;">
+                                {% if step.step_type == "unterlagen_check" %}
+                                    <button type="button" class="btn btn-primary btn-sm" onclick="openDetails('detailsDoccheck')">{{ icon("file") }} Unterlagen prüfen</button>
+                                {% endif %}
+                                <button type="button" class="btn btn-success btn-sm" onclick="openDetails('detailsComplete')">{{ icon("check") }} Weitergeben</button>
+                            </div>
+                            <p style="margin:0; color: var(--text-secondary); font-size:0.9rem;">
+                                Du bist im Step <strong>{{ step.name }}</strong>. Öffne die Details unten, um zu prüfen oder abzuschließen.
+                            </p>
+                        {% else %}
+                            <p class="step-restricted">
+                                {{ icon("lock") }} Du kannst diesen Step nicht bearbeiten. Nur Admin oder Owner/Fallback (falls unzugewiesen) bzw. die zugewiesene Person kann handeln.
+                            </p>
+                        {% endif %}
+                    </div>
+
+                    {# Unterlagen-Check details #}
+                    {% if step.step_type == "unterlagen_check" %}
+                        <a id="doccheck"></a>
+                        <details id="detailsDoccheck" class="details-block" {% if can_doccheck and doccheck_stats.missing + doccheck_stats.wrong > 0 %}open{% endif %}>
+                            <summary class="details-summary">
+                                {{ icon("file") }} Unterlagen-Check
+                                <span class="details-summary-meta">Pflicht {{ doccheck_stats.required_total }} • OK {{ doccheck_stats.received }} • Fehlt {{ doccheck_stats.missing }} • Falsch {{ doccheck_stats.wrong }}</span>
+                            </summary>
+                            <div class="doccheck-section">
+                                <div class="doccheck-stats">
+                                    <div class="doccheck-stat">
+                                        <span class="doccheck-stat-value">{{ doccheck_stats.required_total }}</span>
+                                        <span class="doccheck-stat-label">Pflicht</span>
+                                    </div>
+                                    <div class="doccheck-stat doccheck-stat-ok">
+                                        <span class="doccheck-stat-value">{{ doccheck_stats.received }}</span>
+                                        <span class="doccheck-stat-label">OK</span>
+                                    </div>
+                                    <div class="doccheck-stat doccheck-stat-missing">
+                                        <span class="doccheck-stat-value" id="doccheckMissingCount">{{ doccheck_stats.missing }}</span>
+                                        <span class="doccheck-stat-label">Fehlt</span>
+                                    </div>
+                                    <div class="doccheck-stat doccheck-stat-wrong">
+                                        <span class="doccheck-stat-value" id="doccheckWrongCount">{{ doccheck_stats.wrong }}</span>
+                                        <span class="doccheck-stat-label">Falsch</span>
+                                    </div>
+                                </div>
+
+                                {% if can_doccheck %}
+                                    <div class="doccheck-filters">
+                                        <button type="button" class="btn btn-outline btn-xs" onclick="filterDocs('all')">Alle</button>
+                                        <button type="button" class="btn btn-outline btn-xs" onclick="filterDocs('missing')">Nur fehlend</button>
+                                        <button type="button" class="btn btn-outline btn-xs" onclick="filterDocs('wrong')">Nur falsch</button>
+                                        <span style="flex:1;"></span>
+                                        <button type="button" class="btn btn-outline btn-xs" id="doccheckWideBtn" onclick="toggleDoccheckWide()">Breit</button>
+                                        <button type="button" class="btn btn-outline btn-xs" onclick="openDoccheckOverlay()">Groß anzeigen</button>
+                                    </div>
+
+                                    {% if doc_roots %}
+                                        <div class="doccheck-tree">
+                                        {% macro render_doc_node(node, depth) %}
+                                            {% if node.kind == "folder" %}
+                                                <div class="doccheck-folder" style="--depth: {{ depth }};">
+                                                    <div class="doccheck-folder-title">
+                                                        {{ icon("folder") }} {{ node.code or "" }} {{ node.title }}
+                                                    </div>
+                                                    {% for child in children_by_parent_id.get(node.id, []) %}
+                                                        {{ render_doc_node(child, depth + 1) }}
+                                                    {% endfor %}
+                                                </div>
+                                            {% else %}
+                                                {% set st = status_by_node_id.get(node.id) %}
+                                                {% set status = (st.status if st else "missing") %}
+                                                <div class="doccheck-item" data-doc-status="{{ status }}" style="--depth: {{ depth }};">
+                                                    <div class="doccheck-item-header">
+                                                        <div class="doccheck-item-info">
+                                                            <span class="doccheck-item-name">{{ node.code or "" }} {{ node.title }}</span>
+                                                            {% if node.required %}<span class="badge badge-new badge-xs">Pflicht</span>{% endif %}
+                                                        </div>
+                                                        <span class="doccheck-status doccheck-status-{{ status }}">
+                                                            {% if status == 'received' %}{{ icon("check") }}{% elif status == 'wrong' %}{{ icon("x") }}{% elif status == 'not_applicable' %}-{% else %}?{% endif %}
+                                                        </span>
+                                                    </div>
+                                                    
+                                                    <form method="post" action="/internal/applications/{{ application.id }}/docs/{{ node.id }}/status" class="doccheck-item-form">
+                                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                        <select name="status" class="doccheck-select">
+                                                            <option value="missing" {% if status == "missing" %}selected{% endif %}>fehlt</option>
+                                                            <option value="received" {% if status == "received" %}selected{% endif %}>vorhanden</option>
+                                                            <option value="wrong" {% if status == "wrong" %}selected{% endif %}>falsch</option>
+                                                            <option value="not_applicable" {% if status == "not_applicable" %}selected{% endif %}>n/a</option>
+                                                        </select>
+                                                        <button type="submit" class="btn btn-outline btn-xs">{{ icon("check") }}</button>
+                                                    </form>
+
+                                                    {% set linked = linked_attachments_by_node_id.get(node.id, []) %}
+                                                    {% if linked %}
+                                                        <div class="doccheck-linked">
+                                                            {% for a in linked %}
+                                                                <div class="doccheck-linked-file">
+                                                                    <span>{{ icon("file") }} {{ a.file_name or "Datei" }}</span>
+                                                                    <form method="post" action="/internal/applications/{{ application.id }}/docs/{{ node.id }}/unlink" style="display:inline;">
+                                                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                                        <input type="hidden" name="attachment_id" value="{{ a.id }}">
+                                                                        <button type="submit" class="btn-icon">{{ icon("x") }}</button>
+                                                                    </form>
+                                                                </div>
+                                                            {% endfor %}
+                                                        </div>
+                                                    {% endif %}
+
+                                                    {% if attachments %}
+                                                        <form method="post" action="/internal/applications/{{ application.id }}/docs/{{ node.id }}/link" class="doccheck-link-form">
+                                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                            <select name="attachment_id" class="doccheck-select">
+                                                                {% for a in attachments %}
+                                                                    <option value="{{ a.id }}">{{ a.file_name or ("Datei " ~ a.id) }}</option>
+                                                                {% endfor %}
+                                                            </select>
+                                                            <button type="submit" class="btn btn-outline btn-xs">Zuordnen</button>
+                                                        </form>
+                                                    {% endif %}
+                                                </div>
+                                            {% endif %}
+                                        {% endmacro %}
+
+                                        {% for root in doc_roots %}
+                                            {{ render_doc_node(root, 0) }}
+                                        {% endfor %}
+                                        </div>
+
+                                        <div class="doccheck-request">
+                                            <h4>Fehlende Unterlagen anfordern</h4>
+                                            <form method="post" action="/internal/applications/{{ application.id }}/request-missing-docs">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                <div class="form-group">
+                                                    <textarea name="message" rows="2" placeholder="Nachricht an Bewerber (optional)"></textarea>
+                                                </div>
+                                                <details class="request-details">
+                                                    <summary>Auswahl anpassen</summary>
+                                                    <div class="request-items">
+                                                        {% for n in doc_nodes if n.kind == "item" %}
+                                                            {% set st = status_by_node_id.get(n.id) %}
+                                                            {% set s = (st.status if st else "missing") %}
+                                                            {% if s in ["missing","wrong"] %}
+                                                                <label class="request-item">
+                                                                    <input type="checkbox" name="selected_node_ids" value="{{ n.id }}" {% if n.required %}checked{% endif %}>
+                                                                    <span>{{ (n.code ~ ' ') if n.code else '' }}{{ n.title }}{% if n.required %} (Pflicht){% endif %}</span>
+                                                                </label>
+                                                            {% endif %}
+                                                        {% endfor %}
+                                                    </div>
+                                                </details>
+                                                <button type="submit" class="btn btn-secondary">{{ icon("mail") }} Link zum Nachreichen senden</button>
+                                            </form>
+                                        </div>
+                                    {% else %}
+                                        <p class="no-data">Keine Unterlagenliste für diesen Job konfiguriert.</p>
+                                    {% endif %}
+                                {% else %}
+                                    <p class="doccheck-restricted">
+                                        {{ icon("lock") }} Du kannst die Unterlagen nur prüfen, wenn du Owner oder Fallback dieses Steps bist.
+                                    </p>
+                                {% endif %}
+                            </div>
+                            {# Placeholder must stay OUTSIDE .doccheck-section (overlay moves that block) #}
+                            <div id="doccheckPlaceholder"></div>
+                        </details>
+                    {% endif %}
+
+                    {# Complete step details #}
+                    <details id="detailsComplete" class="details-block" {% if can_act and step.step_type != "unterlagen_check" %}open{% endif %}>
+                        <summary class="details-summary">
+                            {{ icon("check") }} Step abschließen
+                            <span id="completeSummaryMeta" class="details-summary-meta">Nicht bereit</span>
+                        </summary>
+                        <div class="action-card-body">
+                            {% if can_act %}
+                                {% if error %}
+                                    <div class="alert alert-error" style="margin-bottom: 1rem;">
+                                        {{ error }}
+                                    </div>
+                                {% endif %}
+                                <form id="stepCompleteForm" method="post" action="/internal/applications/{{ application.id }}/steps/{{ instance.id }}/complete" class="step-form">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label>Termin *</label>
+                            <input id="scheduledAt" name="scheduled_at" type="text" placeholder="TT.MM.JJJJ HH:MM" required autocomplete="off" value="{{ instance.data_json.scheduled_at if instance.data_json and instance.data_json.scheduled_at else '' }}">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Ergebnis</label>
+                                            <select id="resultSelect" name="result" required>
+                                                <option value="">Auswählen...</option>
+                                {% set saved_result = (instance.data_json.result if instance.data_json and instance.data_json.result else '') %}
+                                <option value="weiter" {% if saved_result == 'weiter' %}selected{% endif %}>Weiter</option>
+                                <option value="warten" {% if saved_result == 'warten' %}selected{% endif %}>Warten</option>
+                                <option value="rueckfrage" {% if saved_result == 'rueckfrage' %}selected{% endif %}>Rückfrage</option>
+                                <option value="ablehnen" {% if saved_result == 'ablehnen' %}selected{% endif %}>Ablehnen</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Kommentar</label>
+                        <textarea name="comment" rows="3" placeholder="Kommentar zum Step...">{{ instance.data_json.comment if instance.data_json and instance.data_json.comment else '' }}</textarea>
+                                    </div>
+                                    <div id="stepCompleteHint" class="step-complete-hint" aria-live="polite"></div>
+                                    <div class="btn-group">
+                                        <button id="saveBtn" type="submit" class="btn btn-outline" formaction="/internal/applications/{{ application.id }}/steps/{{ instance.id }}/save">
+                                            Zwischenspeichern
+                                        </button>
+                                        <button id="completeBtn" type="submit" class="btn btn-success btn-block" disabled title="Nur möglich wenn Termin gesetzt ist und Ergebnis = Weiter oder Ablehnen.">
+                                            {{ icon("check") }} <span id="completeBtnLabel">Step abschließen</span>
+                                        </button>
+                                    </div>
+                                </form>
+                            {% else %}
+                                <p class="step-restricted">{{ icon("lock") }} Du bist nicht berechtigt, diesen Step zu bearbeiten.</p>
+                            {% endif %}
+                        </div>
+                    </details>
+                </div>
+            {% else %}
+                {# No active step - workflow complete or not started #}
+                <div class="action-card">
+                    <div class="action-card-header">
+                        <div>
+                            <div class="action-card-badge">Workflow</div>
+                            <h2 class="action-card-title">
+                                {% if application.status in ['completed', 'accepted'] %}
+                                    Abgeschlossen
+                                {% elif application.status == 'rejected' %}
+                                    Abgelehnt
+                                {% else %}
+                                    Kein aktiver Step
+                                {% endif %}
+                            </h2>
+                        </div>
+                    </div>
+                    <div class="action-card-body">
+                        {% if application.status == 'accepted' %}
+                            <div class="workflow-complete workflow-complete-success">
+                                {{ icon("check") }}
+                                <p>Diese Bewerbung wurde angenommen.</p>
+                            </div>
+                        {% elif application.status == 'rejected' %}
+                            <div class="workflow-complete workflow-complete-rejected">
+                                {{ icon("x") }}
+                                <p>Diese Bewerbung wurde abgelehnt.</p>
+                            </div>
+                        {% elif application.status == 'completed' %}
+                            <div class="workflow-complete">
+                                {{ icon("check") }}
+                                <p>Der Workflow wurde erfolgreich abgeschlossen.</p>
+                            </div>
+                        {% else %}
+                            <p class="no-data">Kein aktiver Workflow-Step verfügbar.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+
+            {# All Steps Overview (collapsed) #}
+            <details class="steps-overview" open>
+                <summary class="steps-overview-toggle">
+                    {{ icon("list") }} Alle Workflow-Steps anzeigen ({{ steps|length }})
+                </summary>
+                <div class="steps-list">
+                    {% for instance, step in steps %}
+                        {% set step_owner = users_by_id.get(step.owner_user_id) if step.owner_user_id else None %}
+                        {% set fallbacks = (step.fallback_users if step.fallback_users else []) %}
+                        {% set completed_by = users_by_id.get(instance.completed_by_user_id) if instance.completed_by_user_id else None %}
+                        <div class="step-item {% if instance.state == 'done' %}step-done{% elif instance.state == 'open' %}step-open{% endif %}">
+                            <div class="step-item-header">
+                                <span class="step-item-order">{{ loop.index }}</span>
+                                <span class="step-item-name">{{ step.name }}</span>
+                                <span class="step-item-status">
+                                    {% if instance.state == 'done' %}{{ icon("check") }}{% else %}{{ icon("clock") }}{% endif %}
+                                </span>
+                            </div>
+                            <div class="step-item-data" style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+                                <span>
+                                    <strong>Owner:</strong>
+                                    {% if step_owner %}{{ step_owner.email }}{% else %}—{% endif %}
+                                </span>
+                                <span>
+                                    <strong>Fallback:</strong>
+                                    {% if fallbacks and fallbacks|length > 0 %}
+                                        {{ fallbacks | map(attribute='email') | join(', ') }}
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </span>
+                            </div>
+                            {% if instance.data_json or instance.completed_at %}
+                                <div class="step-item-data">
+                                    {% if instance.data_json and instance.data_json.result %}
+                                        <span>Ergebnis: {{ instance.data_json.result }}</span>
+                                    {% endif %}
+                                    {% if instance.completed_at %}
+                                        <span>{{ instance.completed_at.strftime('%d.%m.%Y') }}</span>
+                                        <span>von {{ completed_by.email if completed_by else '—' }}</span>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </details>
+        </div>
+    </div>
+
+    {# Doccheck overlay (expandable view) #}
+    <div id="doccheckOverlay" class="doccheck-overlay" aria-hidden="true">
+        <div class="doccheck-overlay-panel" role="dialog" aria-modal="true" aria-label="Unterlagen-Check (Großansicht)">
+            <div class="doccheck-overlay-header">
+                <div class="doccheck-overlay-title">
+                    {{ icon("file") }} Unterlagen-Check
+                </div>
+                <div class="doccheck-overlay-actions">
+                    <button type="button" class="btn btn-outline btn-xs" onclick="closeDoccheckOverlay()">Schließen</button>
+                </div>
+            </div>
+            <div id="doccheckOverlayBody" class="doccheck-overlay-body"></div>
+        </div>
+    </div>
+
+    <script>
+        function filterDocs(mode) {
+            const items = document.querySelectorAll('[data-doc-status]');
+            items.forEach(item => {
+                const status = item.getAttribute('data-doc-status');
+                if (mode === 'all') {
+                    item.style.display = '';
+                } else {
+                    item.style.display = (status === mode) ? '' : 'none';
+                }
+            });
+        }
+
+        function openDetails(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.open = true;
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function toggleDoccheckWide() {
+            document.body.classList.toggle('doccheck-wide');
+            const btn = document.getElementById('doccheckWideBtn');
+            if (btn) btn.textContent = document.body.classList.contains('doccheck-wide') ? 'Normal' : 'Breit';
+        }
+
+        let _doccheckMoved = null;
+        function openDoccheckOverlay() {
+            const overlay = document.getElementById('doccheckOverlay');
+            const body = document.getElementById('doccheckOverlayBody');
+            const section = document.querySelector('#detailsDoccheck .doccheck-section');
+            const placeholder = document.getElementById('doccheckPlaceholder');
+            const details = document.getElementById('detailsDoccheck');
+            if (!overlay || !body || !section || !placeholder) return;
+
+            if (details) details.open = true;
+
+            _doccheckMoved = section;
+            body.appendChild(section);
+            overlay.classList.add('is-open');
+            overlay.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('doccheck-overlay-open');
+        }
+
+        function closeDoccheckOverlay() {
+            const overlay = document.getElementById('doccheckOverlay');
+            const placeholder = document.getElementById('doccheckPlaceholder');
+            if (!overlay) return;
+
+            // Always try to move content back, but still close even if something is missing
+            if (_doccheckMoved) {
+                if (placeholder && placeholder.parentNode) {
+                    placeholder.parentNode.insertBefore(_doccheckMoved, placeholder);
+                } else {
+                    // Fallback: append back into the details container
+                    const details = document.getElementById('detailsDoccheck');
+                    if (details) details.appendChild(_doccheckMoved);
+                }
+            }
+            _doccheckMoved = null;
+            overlay.classList.remove('is-open');
+            overlay.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('doccheck-overlay-open');
+        }
+
+        // Close overlay when clicking on backdrop
+        document.addEventListener('click', (e) => {
+            const overlay = document.getElementById('doccheckOverlay');
+            if (!overlay || !overlay.classList.contains('is-open')) return;
+            if (e.target === overlay) closeDoccheckOverlay();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const overlay = document.getElementById('doccheckOverlay');
+                if (overlay && overlay.classList.contains('is-open')) {
+                    closeDoccheckOverlay();
+                }
+            }
+        });
+
+        function rejectWithReason() {
+            const reason = window.prompt('Ablehnungsgrund (optional):', '');
+            const input = document.getElementById('rejectReason');
+            const form = document.getElementById('rejectForm');
+            if (input) input.value = reason || '';
+            if (form) form.submit();
+        }
+
+        function updateCompleteButtonState() {
+            const scheduledAt = document.getElementById('scheduledAt');
+            const result = document.getElementById('resultSelect');
+            const btn = document.getElementById('completeBtn');
+            const hint = document.getElementById('stepCompleteHint');
+            const meta = document.getElementById('completeSummaryMeta');
+            const details = document.getElementById('detailsComplete');
+            const saveBtn = document.getElementById('saveBtn');
+            if (!scheduledAt || !result || !btn) return;
+            const res = (result.value || '').trim();
+            const hasTermin = scheduledAt.value.trim().length > 0;
+            let allowComplete = hasTermin && (res === 'weiter' || res === 'ablehnen');
+
+            // Extra rule: Unterlagen-Check must be complete before "Weiter"
+            const hasDoccheck = !!document.getElementById('detailsDoccheck');
+            const missEl = document.getElementById('doccheckMissingCount');
+            const wrongEl = document.getElementById('doccheckWrongCount');
+            const missing = parseInt((missEl && missEl.textContent) ? missEl.textContent.trim() : '0', 10) || 0;
+            const wrong = parseInt((wrongEl && wrongEl.textContent) ? wrongEl.textContent.trim() : '0', 10) || 0;
+            if (hasDoccheck && res === 'weiter' && (missing > 0 || wrong > 0)) {
+                allowComplete = false;
+            }
+
+            // Visual feedback
+            scheduledAt.classList.toggle('is-invalid', !hasTermin && scheduledAt.value.trim().length > 0);
+            // Result is not "invalid" when it can't be completed — we show that as yellow (save-only) instead.
+            result.classList.remove('is-invalid');
+            if (details) details.classList.toggle('is-incomplete', !allowComplete);
+
+            btn.disabled = !allowComplete;
+            btn.setAttribute('aria-disabled', (!allowComplete).toString());
+
+            // Reset dynamic styles
+            btn.classList.remove('btn-success', 'btn-danger', 'btn-warning');
+            result.classList.remove('result-green', 'result-red', 'result-yellow');
+            if (hint) hint.classList.remove('is-success', 'is-danger', 'is-warning');
+            if (saveBtn) saveBtn.classList.remove('btn-warning');
+
+            let message = '';
+            if (!hasTermin) {
+                message = 'Bitte Termin setzen.';
+            } else if (!res) {
+                message = "Bitte Ergebnis auswählen. Zum Abschließen muss Ergebnis = 'Weiter' oder 'Ablehnen' sein.";
+            } else if (hasDoccheck && res === 'weiter' && (missing > 0 || wrong > 0)) {
+                message = `Unterlagen-Check nicht vollständig: Pflichtunterlagen fehlen (${missing}) oder sind falsch (${wrong}). Bitte erst prüfen/zuordnen oder Unterlagen nachfordern.`;
+            } else if (res === 'weiter') {
+                message = "Bereit: 'Weiter' – Step wird abgeschlossen und der Prozess geht zum nächsten Step.";
+            } else if (res === 'ablehnen') {
+                message = "Achtung: 'Ablehnen' beendet den Prozess. Bewerber erhält eine E-Mail und alle Beteiligten werden benachrichtigt.";
+            } else if (res === 'warten') {
+                message = "Ergebnis 'Warten': bitte Zwischenspeichern nutzen – der Step bleibt offen.";
+            } else if (res === 'rueckfrage') {
+                message = "Ergebnis 'Rückfrage': bitte Zwischenspeichern nutzen – der Step bleibt offen.";
+            } else {
+                message = "Für dieses Ergebnis ist nur Zwischenspeichern möglich.";
+            }
+
+            if (hint) hint.textContent = message;
+            if (meta) meta.textContent = allowComplete ? 'Bereit' : 'Nicht bereit';
+
+            const label = document.getElementById('completeBtnLabel');
+            if (res === 'weiter') {
+                if (hasDoccheck && (missing > 0 || wrong > 0)) {
+                    result.classList.add('result-yellow');
+                    if (hint) hint.classList.add('is-warning');
+                    if (saveBtn) saveBtn.classList.add('btn-warning');
+                    if (label) label.textContent = 'Step abschließen';
+                } else {
+                    btn.classList.add('btn-success');
+                    result.classList.add('result-green');
+                    if (hint) hint.classList.add('is-success');
+                    if (label) label.textContent = 'Step abschließen (Weiter)';
+                }
+            } else if (res === 'ablehnen') {
+                btn.classList.add('btn-danger');
+                result.classList.add('result-red');
+                if (hint) hint.classList.add('is-danger');
+                if (label) label.textContent = 'Ablehnen & abschließen';
+            } else if (res) {
+                result.classList.add('result-yellow');
+                if (hint) hint.classList.add('is-warning');
+                if (saveBtn) saveBtn.classList.add('btn-warning');
+                if (label) label.textContent = 'Step abschließen';
+            } else {
+                if (label) label.textContent = 'Step abschließen';
+            }
+
+            if (allowComplete) {
+                btn.removeAttribute('title');
+            } else {
+                btn.setAttribute('title', message);
+            }
+        }
+
+        document.addEventListener('input', (e) => {
+            if (e.target && (e.target.id === 'scheduledAt')) updateCompleteButtonState();
+        });
+        document.addEventListener('change', (e) => {
+            if (e.target && (e.target.id === 'resultSelect')) updateCompleteButtonState();
+        });
+        document.addEventListener('DOMContentLoaded', updateCompleteButtonState);
+
+        // Confirm dangerous complete actions
+        document.addEventListener('submit', (e) => {
+            const form = e.target;
+            if (!form || form.id !== 'stepCompleteForm') return;
+            const sel = document.getElementById('resultSelect');
+            const res = ((sel && sel.value) ? sel.value : '').trim();
+            if (res === 'ablehnen') {
+                const ok = window.confirm("Bewerbung wirklich ablehnen? Der Prozess wird beendet und Benachrichtigungen/E-Mail werden versendet.");
+                if (!ok) e.preventDefault();
+            }
+        });
+    </script>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/de.js"></script>
+  <script>
+    (function () {
+      const el = document.getElementById('scheduledAt');
+      if (!el || !window.flatpickr) return;
+      flatpickr.localize(flatpickr.l10ns.de);
+      flatpickr(el, {
+        enableTime: true,
+        time_24hr: true,
+        minuteIncrement: 5,
+        allowInput: true,
+        dateFormat: "d.m.Y H:i",
+      });
+    })();
+  </script>
+{% endblock %}

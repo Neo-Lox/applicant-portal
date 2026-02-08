@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Benachrichtigungen{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="flex-between">
+        <div>
+            <h1>Benachrichtigungen</h1>
+            {% if unread_count is defined %}
+                <p style="color: var(--text-secondary); margin-top: 0.25rem;">Ungelesen: <strong>{{ unread_count }}</strong></p>
+            {% endif %}
+        </div>
+        <div class="btn-group">
+            <a href="/internal/applications" class="btn btn-outline">← Zurück</a>
+            <a href="/internal/notifications{% if not only_unread %}?unread=1{% endif %}" class="btn btn-outline">
+                {% if only_unread %}Alle anzeigen{% else %}Nur ungelesen{% endif %}
+            </a>
+            {% if unread_count and unread_count > 0 %}
+                <form method="post" action="/internal/notifications/mark-all-read" style="display:inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-primary">Alles als gelesen</button>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if notifications %}
+    <div class="list">
+        {% for notification in notifications %}
+            <div class="list-item" style="{% if not notification.seen_at %}border-left: 4px solid var(--primary-color);{% endif %}">
+                <div class="flex-between">
+                    <div style="flex: 1;">
+                        <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; margin-bottom:0.35rem;">
+                            <span class="badge badge-in-progress" style="font-size:0.75rem;">
+                                {% if notification.type == 'assignment' %}Zuweisung{% elif notification.type == 'step_ready' %}Step bereit{% elif notification.type == 'new_application' %}Neue Bewerbung{% elif notification.type == 'candidate_upload' %}Unterlagen{% else %}Info{% endif %}
+                            </span>
+                            {% if not notification.seen_at %}
+                                <span class="badge badge-new" style="font-size:0.75rem;">Neu</span>
+                            {% endif %}
+                        </div>
+                        <p style="{% if not notification.seen_at %}font-weight: 600;{% endif %} margin-bottom: 0.5rem;">
+                            {{ notification.message }}
+                        </p>
+                        <p style="color: var(--text-secondary); font-size: 0.875rem;">
+                            {{ notification.created_at.strftime('%d.%m.%Y %H:%M') if notification.created_at else '' }}
+                        </p>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        {% if notification.application_id %}
+                            <a href="/internal/applications/{{ notification.application_id }}" class="btn btn-primary btn-sm">Ansehen</a>
+                        {% endif %}
+                        {% if not notification.seen_at %}
+                            <form method="post" action="/internal/notifications/{{ notification.id }}/mark-read" style="display: inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-outline btn-sm">Gelesen</button>
+                            </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="card">
+        <p class="text-center">
+            {% if only_unread %}Keine ungelesenen Benachrichtigungen.{% else %}Keine Benachrichtigungen vorhanden.{% endif %}
+        </p>
+    </div>
+{% endif %}
+{% endblock %}

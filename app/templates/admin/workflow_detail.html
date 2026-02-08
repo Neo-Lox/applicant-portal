@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Workflow: {{ workflow.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="flex-between">
+        <div>
+            <h1>Workflow: {{ workflow.name }}</h1>
+        </div>
+        <div class="btn-group">
+            <a href="/admin/workflows" class="btn btn-outline">← Zurück</a>
+            <a href="/admin/workflows/{{ workflow.id }}/edit" class="btn btn-outline">Bearbeiten</a>
+            {% if deletable %}
+                <form method="post" action="/admin/workflows/{{ workflow.id }}/delete" style="display:inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-outline" type="submit"
+                            onclick="return confirm('Workflow wirklich löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.')">
+                        Löschen
+                    </button>
+                </form>
+            {% else %}
+                <button class="btn btn-outline" type="button" disabled title="Nur möglich, wenn keine veröffentlichten Jobs und keine Bewerbungen/Steps existieren.">
+                    Löschen
+                </button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h2 class="card-title">Verwendung</h2>
+    <p style="color: var(--text-secondary);">
+        Jobs mit diesem Workflow: <strong>{{ jobs_using|length }}</strong>{% if published_count > 0 %} ({{ published_count }} veröffentlicht){% endif %}
+        • Bewerbungs-Steps: <strong>{{ step_instances_count }}</strong>
+    </p>
+    {% if not deletable %}
+        <div class="alert alert-error" style="margin-top: 1rem;">
+            Workflow kann nur gelöscht werden, wenn
+            (1) kein Job damit veröffentlicht ist und
+            (2) keine Bewerbungen/Step-Instanzen existieren.
+        </div>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h2 class="card-title">Steps</h2>
+    {% if steps %}
+        <div class="steps">
+            {% for step in steps %}
+                <div class="step">
+                    <div class="step-title">{{ step.step_order }}. {{ step.name }}</div>
+                    <div class="step-meta">
+                        Owner: <strong>{{ step.owner_role or "Nicht zugewiesen" }}</strong>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p style="color: var(--text-secondary);">Keine Steps vorhanden.</p>
+    {% endif %}
+</div>
+{% endblock %}

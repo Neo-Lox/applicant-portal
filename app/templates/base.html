@@ -1,0 +1,69 @@
+<!doctype html>
+{% from "partials/icons.html" import icon %}
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{% block title %}Applicant Portal{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <a href="/" class="brand">
+                <img class="brand-logo" src="{{ url_for('static', filename='Logo 5-01.svg') }}" alt="Neo Lox GmbH">
+            </a>
+            <nav>
+                {% block nav %}
+                    {% if current_user %}
+                        <a href="/internal/">Dashboard</a>
+                        <a href="/internal/applications">Bewerbungen</a>
+                        <a href="/internal/notifications">
+                            Benachrichtigungen
+                            {% if unread_notifications and unread_notifications > 0 %}
+                                <span class="notification-badge">{{ unread_notifications }}</span>
+                            {% endif %}
+                        </a>
+                        {% if current_user.role == 'admin' %}
+                            <a href="/admin/">Admin</a>
+                        {% endif %}
+                        <a href="/logout">Logout</a>
+                    {% else %}
+                        <a href="/login">Login</a>
+                    {% endif %}
+                {% endblock %}
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <div class="container">
+            {% if error %}
+                <div class="alert alert-error">{{ error }}</div>
+            {% endif %}
+            {% if success %}
+                <div class="alert alert-success" style="display:flex; align-items:center; gap:0.5rem;">
+                    {{ icon("check") }}
+                    <span>{{ success }}</span>
+                </div>
+            {% endif %}
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2026 Neo Lox GmbH. Alle Rechte vorbehalten.</p>
+            <p style="margin-top: 0.5rem;">
+                <a href="/impressum" style="color: inherit; text-decoration: underline;">Impressum</a>
+                <span style="margin: 0 0.5rem;">•</span>
+                <a href="/datenschutz" style="color: inherit; text-decoration: underline;">Datenschutz</a>
+            </p>
+        </div>
+    </footer>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

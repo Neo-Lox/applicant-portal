@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+
+{% block title %}Bewerbungsmanagement{% endblock %}
+
+{% block nav %}
+    <a href="/internal/">Dashboard</a>
+    <a href="/internal/applications" class="active">Bewerbungen</a>
+    <a href="/internal/notifications">
+        Benachrichtigungen
+        {% if unread_notifications > 0 %}
+            <span class="notification-badge">{{ unread_notifications }}</span>
+        {% endif %}
+    </a>
+    {% if current_user.role == 'admin' %}
+        <a href="/admin/">Admin</a>
+    {% endif %}
+    <a href="/logout">Logout</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="flex-between">
+        <div>
+            <h1>Bewerbungsmanagement</h1>
+            <p style="color: var(--text-secondary);">Verwalte und bearbeite alle eingehenden Bewerbungen</p>
+        </div>
+    </div>
+</div>
+
+{# Tab Navigation #}
+<div class="tabs-container">
+    <div class="tabs">
+        <a href="?tab=all" class="tab {% if active_tab == 'all' %}active{% endif %}">
+            <span class="tab-label">Alle</span>
+            <span class="tab-count">{{ tab_counts.all }}</span>
+        </a>
+        <a href="?tab=new" class="tab {% if active_tab == 'new' %}active{% endif %}">
+            <span class="tab-label">Neu</span>
+            <span class="tab-count tab-count-highlight">{{ tab_counts.new }}</span>
+        </a>
+        <a href="?tab=mine" class="tab {% if active_tab == 'mine' %}active{% endif %}">
+            <span class="tab-label">Bei mir</span>
+            <span class="tab-count">{{ tab_counts.mine }}</span>
+        </a>
+        <a href="?tab=waiting" class="tab {% if active_tab == 'waiting' %}active{% endif %}">
+            <span class="tab-label">Warten</span>
+            <span class="tab-count">{{ tab_counts.waiting }}</span>
+        </a>
+    </div>
+</div>
+
+{# Collapsible Filters #}
+<details class="filters-collapsible">
+    <summary class="filters-toggle">
+        {{ icon("search") }} Erweiterte Filter
+        {% if request.args.get('job_id') or request.args.get('status') or request.args.get('source') or request.args.get('from') or request.args.get('to') %}
+            <span class="badge badge-new" style="margin-left: 0.5rem;">Aktiv</span>
+        {% endif %}
+    </summary>
+    <div class="filters-content">
+        <form method="get">
+            <input type="hidden" name="tab" value="{{ active_tab }}">
+            <div class="filters-grid">
+                <div class="form-group">
+                    <label>Job</label>
+                    <select name="job_id">
+                        <option value="">Alle Jobs</option>
+                        {% for job in jobs %}
+                            <option value="{{ job.id }}" {% if request.args.get('job_id') == job.id|string %}selected{% endif %}>{{ job.title }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Status</label>
+                    <select name="status">
+                        <option value="">Alle Status</option>
+                        <option value="new" {% if request.args.get('status') == 'new' %}selected{% endif %}>Neu</option>
+                        <option value="in_progress" {% if request.args.get('status') == 'in_progress' %}selected{% endif %}>In Bearbeitung</option>
+                        <option value="waiting_on_candidate" {% if request.args.get('status') == 'waiting_on_candidate' %}selected{% endif %}>Warten auf Kandidat</option>
+                        <option value="completed" {% if request.args.get('status') == 'completed' %}selected{% endif %}>Abgeschlossen</option>
+                        <option value="rejected" {% if request.args.get('status') == 'rejected' %}selected{% endif %}>Abgelehnt</option>
+                        <option value="accepted" {% if request.args.get('status') == 'accepted' %}selected{% endif %}>Angenommen</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Quelle</label>
+                    <select name="source">
+                        <option value="">Alle</option>
+                        <option value="public" {% if request.args.get('source') == 'public' %}selected{% endif %}>Öffentlich</option>
+                        <option value="internal" {% if request.args.get('source') == 'internal' %}selected{% endif %}>Intern</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Von</label>
+                    <input name="from" type="date" value="{{ request.args.get('from','') }}">
+                </div>
+
+                <div class="form-group">
+                    <label>Bis</label>
+                    <input name="to" type="date" value="{{ request.args.get('to','') }}">
+                </div>
+
+                <div class="form-group filter-actions">
+                    <button type="submit" class="btn btn-primary btn-sm">Filtern</button>
+                    <a href="/internal/applications?tab={{ active_tab }}" class="btn btn-outline btn-sm">Zurücksetzen</a>
+                </div>
+            </div>
+        </form>
+    </div>
+</details>
+
+{# Application Cards #}
+{% if applications %}
+    <div class="app-cards">
+        {% for application in applications %}
+            {% set job = jobs_by_id.get(application.job_id) %}
+            {% set candidate = candidates_by_id.get(application.candidate_id) %}
+            {% set step_info = current_steps.get(application.id) %}
+            {% set action = next_actions.get(application.id) %}
+            {% set is_mine = action.can_act if action else false %}
+            {% set days_old = ((now - application.created_at).days) if application.created_at else 0 %}
+            {% set status = status_meta.get(application.status, {'label': application.status, 'badge': 'in-progress'}) %}
+            {% set preview = notif_preview_by_app_id.get(application.id) %}
+            
+            <div class="app-card {% if is_mine %}app-card-mine{% endif %} {% if application.status == 'new' %}app-card-new{% endif %}">
+                <div class="app-card-header">
+                    <div class="app-card-ref">
+                        {{ application.reference_number or ('#' ~ application.id) }}
+                    </div>
+                    <div class="app-card-age {% if days_old == 0 %}age-today{% elif days_old <= 2 %}age-recent{% elif days_old >= 7 %}age-old{% endif %}">
+                        {% if days_old == 0 %}
+                            Heute
+                        {% elif days_old == 1 %}
+                            Gestern
+                        {% else %}
+                            vor {{ days_old }} Tagen
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="app-card-body">
+                    <div class="app-card-candidate">
+                        {{ icon("user") }}
+                        <span>{{ candidate.name if candidate else 'Unbekannt' }}</span>
+                    </div>
+                    <div class="app-card-job">
+                        {{ job.title if job else 'Unbekannter Job' }}
+                    </div>
+                </div>
+                
+                <div class="app-card-status-row">
+                    <span class="badge badge-{{ status.badge }}">{{ status.label }}</span>
+                    {% if step_info %}
+                        <span class="app-card-step">
+                            {{ icon("chevronRight") }} {{ step_info.step.name if step_info.step else '' }}
+                        </span>
+                    {% endif %}
+                </div>
+
+                {% if preview %}
+                    <div class="app-card-preview">
+                        <span class="preview-pill">
+                            {% if preview.type == 'assignment' %}Zuweisung{% elif preview.type == 'step_ready' %}Step bereit{% else %}Info{% endif %}
+                        </span>
+                        <span class="preview-text">{{ preview.message }}</span>
+                    </div>
+                {% endif %}
+                
+                <div class="app-card-footer">
+                    {% if action and action.can_act %}
+                        <span class="app-card-assignment app-card-assignment-mine">
+                            {{ icon("check") }} Bei dir
+                        </span>
+                    {% endif %}
+
+                    <div class="app-card-actions">
+                        {% if action and action.cta.kind == 'claim' %}
+                            <form method="post" action="{{ action.cta.action }}" style="display:flex; gap:0.5rem; align-items:center;">
+                                <button type="submit" class="btn btn-primary btn-sm">{{ action.cta.label }}</button>
+                                <a class="btn btn-outline btn-sm" href="/internal/applications/{{ application.id }}">Ansehen</a>
+                            </form>
+                        {% else %}
+                            <a class="btn btn-primary btn-sm" href="{{ action.cta.href if action else '/internal/applications/' ~ application.id }}" {% if action and action.cta.disabled %}title="{{ action.cta.reason }}"{% endif %}>
+                                {{ action.cta.label if action else 'Ansehen' }}
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="empty-state">
+        <div class="empty-state-icon">{{ icon("file") }}</div>
+        <h3>Keine Bewerbungen gefunden</h3>
+        <p>Es gibt keine Bewerbungen, die deinen Filterkriterien entsprechen.</p>
+        {% if active_tab != 'all' %}
+            <a href="/internal/applications?tab=all" class="btn btn-primary">Alle Bewerbungen anzeigen</a>
+        {% endif %}
+    </div>
+{% endif %}
+{% endblock %}

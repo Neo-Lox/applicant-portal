@@ -1,0 +1,404 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+
+{% block title %}{{ job.title if job else "Stelle nicht gefunden" }}{% endblock %}
+
+{% block content %}
+{% if not job %}
+    <div class="card">
+        <p>Stelle nicht gefunden.</p>
+        <a href="/" class="btn btn-primary">Zurück zur Übersicht</a>
+    </div>
+{% else %}
+    <div class="page-header">
+        <h1>{{ job.title }}</h1>
+        <div style="display:flex; gap: 1rem; flex-wrap: wrap; color: var(--text-secondary);">
+            {% if job.location %}<span>{{ icon("location") }} {{ job.location }}</span>{% endif %}
+            {% if job.department %}<span>{{ icon("building") }} {{ job.department }}</span>{% endif %}
+            {% if job.employment_type %}<span>{{ icon("clock") }} {{ job.employment_type }}</span>{% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 class="card-title">Kurzbeschreibung</h2>
+        {% if job.description %}
+            <p class="job-description">{{ job.description | truncate(800, True, "…") }}</p>
+        {% else %}
+            <p style="color: var(--text-secondary);">Keine Beschreibung vorhanden.</p>
+        {% endif %}
+
+        <div class="btn-group" style="margin-top: 1rem;">
+            <a class="btn btn-outline" href="/jobs/{{ job.id }}/details">Zur Detailansicht</a>
+            <a class="btn btn-primary" href="#apply">Direkt bewerben</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 class="card-title">Anforderungen</h2>
+        {% if job.requirements %}
+            <p style="white-space: pre-wrap;">{{ job.requirements }}</p>
+        {% else %}
+            <p style="color: var(--text-secondary);">Keine Anforderungen hinterlegt.</p>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <div id="apply"></div>
+        <h2 class="card-title">Jetzt bewerben</h2>
+        {% if error %}
+            <div class="alert alert-error">{{ error }}</div>
+        {% endif %}
+        {% set max_pdf_bytes = (config.get('UPLOAD_MAX_FILE_BYTES_PDF') or 0) %}
+        {% set max_img_bytes = (config.get('UPLOAD_MAX_FILE_BYTES_IMAGE') or 0) %}
+        {% set max_apply_bytes = (config.get('UPLOAD_MAX_BYTES_APPLY') or config.get('MAX_CONTENT_LENGTH') or 0) %}
+        {% set max_files_req = (config.get('UPLOAD_MAX_FILES_PER_REQUEST') or 10) %}
+        {% set max_pdf_mb = (max_pdf_bytes / (1024*1024))|int if max_pdf_bytes else 0 %}
+        {% set max_img_mb = (max_img_bytes / (1024*1024))|int if max_img_bytes else 0 %}
+        {% set max_apply_mb = (max_apply_bytes / (1024*1024))|int if max_apply_bytes else 0 %}
+        {% set cv_req = cv_required|default(true) %}
+        {% set cover_req = cover_letter_required|default(false) %}
+        {% set cert_req = certificate_required|default(false) %}
+
+        <form
+            action="/jobs/{{ job.id }}/apply"
+            method="post"
+            enctype="multipart/form-data"
+            data-max-pdf-bytes="{{ max_pdf_bytes|int }}"
+            data-max-img-bytes="{{ max_img_bytes|int }}"
+            data-max-apply-bytes="{{ max_apply_bytes|int }}"
+            data-max-pdf-mb="{{ max_pdf_mb }}"
+            data-max-img-mb="{{ max_img_mb }}"
+            data-max-apply-mb="{{ max_apply_mb }}"
+            data-max-files-per-request="{{ max_files_req|int }}"
+        >
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-row form-row-2col">
+                <div class="form-group">
+                    <label for="first_name">Vorname *</label>
+                    <input id="first_name" name="first_name" type="text" autocomplete="given-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="last_name">Nachname *</label>
+                    <input id="last_name" name="last_name" type="text" autocomplete="family-name" required>
+                </div>
+            </div>
+
+            <div class="form-row form-row-2col">
+                <div class="form-group">
+                    <label for="email">E-Mail *</label>
+                    <input id="email" name="email" type="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="phone">Telefon</label>
+                    <input id="phone" name="phone" type="tel">
+                </div>
+            </div>
+
+            <div class="form-row form-row-2col">
+                <div class="form-group">
+                    <label for="address">Wohnort</label>
+                    <input id="address" name="address" type="text">
+                </div>
+                <div class="form-group">
+                    <label for="earliest_start">Frühester Starttermin</label>
+                    <input id="earliest_start" name="earliest_start" type="date" autocomplete="off">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="message">Nachricht (optional)</label>
+                <textarea
+                    id="message"
+                    name="message"
+                    maxlength="500"
+                    rows="4"
+                    placeholder="Optional: Nachricht an unser Recruiting-Team (max. 500 Zeichen)"
+                    style="resize: vertical;"
+                ></textarea>
+                <p style="margin:0.35rem 0 0 0; color: var(--text-secondary); font-size: 0.875rem;">
+                    Max. 500 Zeichen.
+                </p>
+            </div>
+
+            <div class="form-group">
+                <label for="cv">Lebenslauf (CV){% if cv_req %} *{% else %} (optional){% endif %}</label>
+                <div class="file-upload dropzone" data-dropzone-for="cv" data-multiple="0">
+                    <input id="cv" name="cv" type="file" accept=".pdf,.png,.jpg,.jpeg" {% if cv_req %}required{% endif %}>
+                    <p class="dz-title">Datei hierher ziehen oder klicken</p>
+                    <p class="dz-sub" style="margin-top: 0.25rem;">
+                        {% if cv_req %}Pflichtdokument{% else %}Optional{% endif %} • PDF/JPG/PNG • Max. pro Datei: PDF {{ max_pdf_mb }} MB, Bilder {{ max_img_mb }} MB • Gesamt (Absenden): {{ max_apply_mb }} MB
+                    </p>
+                    <p class="dz-files" aria-live="polite"></p>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="cover_letter">Anschreiben{% if cover_req %} *{% else %} (optional){% endif %}</label>
+                <div class="file-upload dropzone" data-dropzone-for="cover_letter" data-multiple="0">
+                    <input id="cover_letter" name="cover_letter" type="file" accept=".pdf,.png,.jpg,.jpeg" {% if cover_req %}required{% endif %}>
+                    <p class="dz-title">Datei hierher ziehen oder klicken</p>
+                    <p class="dz-sub" style="margin-top: 0.25rem;">
+                        {% if cover_req %}Pflichtdokument{% else %}Optional{% endif %} • PDF/JPG/PNG • Max. pro Datei: PDF {{ max_pdf_mb }} MB, Bilder {{ max_img_mb }} MB
+                    </p>
+                    <p class="dz-files" aria-live="polite"></p>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="certificates">Zeugnisse {% if cert_req %}(mehrere) *{% else %}(optional, mehrere){% endif %}</label>
+                <div class="file-upload dropzone" data-dropzone-for="certificates" data-multiple="1">
+                    <input id="certificates" name="certificates" type="file" multiple accept=".pdf,.png,.jpg,.jpeg" {% if cert_req %}required{% endif %}>
+                    <p class="dz-title">Dateien hierher ziehen oder klicken</p>
+                    <p class="dz-sub" style="margin-top: 0.25rem;">
+                        {% if cert_req %}Pflichtdokument{% else %}Optional{% endif %} • mehrere Dateien möglich (max. {{ max_files_req }} pro Upload) • Max. pro Datei: PDF {{ max_pdf_mb }} MB, Bilder {{ max_img_mb }} MB
+                    </p>
+                    <p class="dz-files" aria-live="polite"></p>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="other_files">Weitere Unterlagen (optional, mehrere)</label>
+                <div class="file-upload dropzone" data-dropzone-for="other_files" data-multiple="1">
+                    <input id="other_files" name="other_files" type="file" multiple accept=".pdf,.png,.jpg,.jpeg">
+                    <p class="dz-title">Dateien hierher ziehen oder klicken</p>
+                    <p class="dz-sub" style="margin-top: 0.25rem;">
+                        Optional • z.B. Zertifikate, Nachweise (max. {{ max_files_req }} pro Upload) • Max. pro Datei: PDF {{ max_pdf_mb }} MB, Bilder {{ max_img_mb }} MB
+                    </p>
+                    <p class="dz-files" aria-live="polite"></p>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" name="consent" required>
+                    <span style="margin-left: 0.5rem;">
+                        Ich habe den <a href="{{ config['PRIVACY_URL'] }}" target="_blank" rel="noopener noreferrer">Datenschutzhinweis</a> gelesen und willige ein. *
+                        <span style="color: var(--text-secondary);">(Aufbewahrung: {{ config['RETENTION_MONTHS'] }} Monate)</span>
+                    </span>
+                </label>
+            </div>
+
+            <div class="btn-group">
+                <button type="submit" class="btn btn-primary">Bewerbung absenden</button>
+                <a href="/" class="btn btn-outline">Abbrechen</a>
+            </div>
+        </form>
+    </div>
+
+    <script>
+      (function () {
+        // --- Date validation (no past dates) ---
+        const earliest = document.getElementById('earliest_start');
+        if (earliest) {
+          const d = new Date();
+          const today = new Date(d.getFullYear(), d.getMonth(), d.getDate()); // midnight local
+          const yyyy = today.getFullYear();
+          const mm = String(today.getMonth() + 1).padStart(2, '0');
+          const dd = String(today.getDate()).padStart(2, '0');
+          earliest.min = `${yyyy}-${mm}-${dd}`;
+
+          function validateEarliest() {
+            const s = (earliest.value || '').trim(); // YYYY-MM-DD
+            if (!s) { earliest.setCustomValidity(''); return; }
+            const dt = new Date(s + 'T00:00:00');
+            if (isNaN(dt.getTime())) {
+              earliest.setCustomValidity('Bitte ein gültiges Datum auswählen.');
+              return;
+            }
+            const candidate = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+            if (candidate < today) {
+              earliest.setCustomValidity('Der früheste Starttermin darf nicht in der Vergangenheit liegen.');
+              return;
+            }
+            earliest.setCustomValidity('');
+          }
+
+          earliest.addEventListener('input', validateEarliest);
+          earliest.addEventListener('change', validateEarliest);
+          earliest.addEventListener('blur', validateEarliest);
+        }
+
+        // --- Upload UX + size validation ---
+        const zones = document.querySelectorAll('.dropzone[data-dropzone-for]');
+        const form = document.querySelector('form[enctype="multipart/form-data"]');
+        const MAX_PDF_BYTES = Number(form?.dataset?.maxPdfBytes || 0);
+        const MAX_IMG_BYTES = Number(form?.dataset?.maxImgBytes || 0);
+        const MAX_APPLY_BYTES = Number(form?.dataset?.maxApplyBytes || 0);
+        const MAX_PDF_MB = Number(form?.dataset?.maxPdfMb || 0);
+        const MAX_IMG_MB = Number(form?.dataset?.maxImgMb || 0);
+        const MAX_APPLY_MB = Number(form?.dataset?.maxApplyMb || 0);
+        const MAX_FILES_PER_REQUEST = Number(form?.dataset?.maxFilesPerRequest || 10);
+
+        function maxBytesForFile(file) {
+          const name = (file && file.name ? String(file.name) : '').toLowerCase();
+          const type = (file && file.type ? String(file.type) : '').toLowerCase();
+          const isPdf = type === 'application/pdf' || name.endsWith('.pdf');
+          const isImg = type.startsWith('image/') || name.endsWith('.png') || name.endsWith('.jpg') || name.endsWith('.jpeg');
+          if (isPdf) return MAX_PDF_BYTES || null;
+          if (isImg) return MAX_IMG_BYTES || null;
+          return null;
+        }
+
+        function formatFiles(files) {
+          if (!files || files.length === 0) return '';
+          const names = Array.from(files).map(f => f.name);
+          if (names.length === 1) return names[0];
+          return names.length + ' Dateien: ' + names.join(', ');
+        }
+        function setFiles(input, files, allowMultiple) {
+          const dt = new DataTransfer();
+          if (allowMultiple) {
+            for (const f of files) dt.items.add(f);
+          } else {
+            if (files[0]) dt.items.add(files[0]);
+          }
+          input.files = dt.files;
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        function validateAndFilterFiles(input, files, allowMultiple) {
+          const kept = [];
+          const rejected = [];
+          for (const f of Array.from(files || [])) {
+            const lim = maxBytesForFile(f);
+            if (lim && typeof f.size === 'number' && f.size > lim) rejected.push(f);
+            else kept.push(f);
+          }
+          const finalKept = allowMultiple ? kept : (kept[0] ? [kept[0]] : []);
+          if (rejected.length > 0) {
+            const msg = `Zu große Datei(en) entfernt. Max.: PDF ${MAX_PDF_MB} MB, Bilder ${MAX_IMG_MB} MB.`;
+            try {
+              if (!finalKept.length && input && input.required) {
+                input.setCustomValidity(`Datei zu groß. Max.: PDF ${MAX_PDF_MB} MB, Bilder ${MAX_IMG_MB} MB.`);
+              } else {
+                input.setCustomValidity('');
+              }
+            } catch (e) {}
+            return { files: finalKept, warning: msg };
+          }
+          try { input.setCustomValidity(''); } catch (e) {}
+          return { files: finalKept, warning: null };
+        }
+
+        zones.forEach(zone => {
+          const inputId = zone.getAttribute('data-dropzone-for');
+          const input = document.getElementById(inputId);
+          const allowMultiple = zone.getAttribute('data-multiple') === '1';
+          const filesEl = zone.querySelector('.dz-files');
+          const titleEl = zone.querySelector('.dz-title');
+          if (!input) return;
+
+          zone.addEventListener('click', (e) => {
+            if (e.target && (e.target.tagName === 'A' || e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT')) return;
+            input.click();
+          });
+
+          input.addEventListener('change', () => {
+            // Enforce per-input file count for multi inputs
+            if (allowMultiple && input.files && input.files.length > MAX_FILES_PER_REQUEST) {
+              try { input.setCustomValidity(`Zu viele Dateien (max. ${MAX_FILES_PER_REQUEST} pro Upload).`); } catch (e) {}
+            } else {
+              try { input.setCustomValidity(''); } catch (e) {}
+            }
+
+            const res = validateAndFilterFiles(input, input.files, allowMultiple);
+            if (res.warning && filesEl) filesEl.textContent = res.warning;
+            if (res.files && input.files && res.files.length !== input.files.length) {
+              setFiles(input, res.files, allowMultiple);
+              return;
+            }
+
+            const txt = formatFiles(input.files);
+            if (filesEl) filesEl.textContent = txt;
+            if (titleEl) titleEl.textContent = txt ? 'Ausgewählt' : (allowMultiple ? 'Dateien hierher ziehen oder klicken' : 'Datei hierher ziehen oder klicken');
+            zone.classList.toggle('has-files', !!txt);
+          });
+
+          ['dragenter', 'dragover'].forEach(evt => {
+            zone.addEventListener(evt, (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              zone.classList.add('is-dragover');
+            });
+          });
+          ['dragleave', 'drop'].forEach(evt => {
+            zone.addEventListener(evt, (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              zone.classList.remove('is-dragover');
+            });
+          });
+          zone.addEventListener('drop', (e) => {
+            const files = e.dataTransfer && e.dataTransfer.files ? e.dataTransfer.files : null;
+            if (!files || files.length === 0) return;
+            const res = validateAndFilterFiles(input, files, allowMultiple);
+            if (res.warning && filesEl) filesEl.textContent = res.warning;
+            setFiles(input, res.files || files, allowMultiple);
+          });
+        });
+
+        // Total request limit (best-effort)
+        if (form && MAX_APPLY_BYTES) {
+          form.addEventListener('submit', (e) => {
+            let total = 0;
+            const inputs = form.querySelectorAll('input[type="file"]');
+            inputs.forEach(inp => {
+              const fs = inp.files || [];
+              for (const f of Array.from(fs)) total += (typeof f.size === 'number' ? f.size : 0);
+            });
+            if (total > MAX_APPLY_BYTES) {
+              e.preventDefault();
+              const cv = document.getElementById('cv');
+              try {
+                (cv || form).setCustomValidity && (cv || form).setCustomValidity(`Upload zu groß (max. ${MAX_APPLY_MB} MB insgesamt).`);
+              } catch (err) {}
+              alert(`Upload zu groß (max. ${MAX_APPLY_MB} MB insgesamt). Bitte kleinere Dateien auswählen.`);
+            }
+          });
+        }
+      })();
+    </script>
+
+    <div class="recruiter-card">
+        <div class="recruiter-card-inner">
+            <div class="recruiter-profile">
+                <img
+                    class="recruiter-avatar"
+                    src="{{ url_for('static', filename='Tayyib.jpeg') }}"
+                    alt="Tayyib Calisir"
+                    loading="lazy"
+                >
+                <div class="recruiter-info">
+                    <span class="recruiter-label">Dein Ansprechpartner</span>
+                    <h3 class="recruiter-name">Tayyib Calisir</h3>
+                    <span class="recruiter-title">Recruiting bei Neo Lox GmbH</span>
+                </div>
+            </div>
+
+            <p class="recruiter-message">
+                Du bist unsicher, welche Unterlagen du brauchst, wie der Ablauf aussieht oder wann du mit Feedback rechnen kannst?
+                Schreib mir oder ruf kurz durch – wir sind gerne für dich da.
+            </p>
+
+            <div class="recruiter-actions">
+                <a class="recruiter-action-btn recruiter-action-primary" href="tel:+491786817102">
+                    {{ icon("phone") }}
+                    <span>+49 178 6817102</span>
+                </a>
+                <a class="recruiter-action-btn" href="mailto:hr@neo-lox.de">
+                    {{ icon("mail") }}
+                    <span>hr@neo-lox.de</span>
+                </a>
+                <a class="recruiter-action-btn" href="https://de.linkedin.com/in/tayyib%C3%A7al%C4%B1%C5%9F%C4%B1r" target="_blank" rel="noopener noreferrer">
+                    {{ icon("linkedin") }}
+                    <span>LinkedIn</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="recruiter-footer">
+            <a href="{{ config['PRIVACY_URL'] }}" target="_blank" rel="noopener noreferrer">{{ icon("shield") }} Datenschutzhinweis</a>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}

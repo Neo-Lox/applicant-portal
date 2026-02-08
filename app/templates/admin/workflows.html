@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block title %}Workflows verwalten{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="flex-between">
+        <div>
+            <h1>Workflows verwalten</h1>
+        </div>
+        <a href="/admin/" class="btn btn-outline">← Dashboard</a>
+    </div>
+</div>
+
+<div class="card">
+    <h2 class="card-title">Neuen Workflow erstellen</h2>
+    <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+            <label>Name *</label>
+            <input name="name" type="text" required placeholder="z.B. Triebfahrzeugführer Standard">
+        </div>
+
+        <div id="steps">
+            <h3 style="margin-bottom: 1rem;">Steps</h3>
+            <div class="form-row" style="margin-bottom: 1rem;">
+                <div class="form-group">
+                    <label>Step Name</label>
+                    <input name="step_name" type="text" placeholder="z.B. Erstsichtung">
+                </div>
+                <div class="form-group">
+                    <label>Step-Typ</label>
+                    <select name="step_type_1">
+                        <option value="standard" selected>Standard</option>
+                        <option value="unterlagen_check">Unterlagen-Check</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Owner Modus</label>
+                    <select name="step_owner_mode_1" onchange="toggleOwnerFields(1, this.value)">
+                        <option value="user" selected>Person</option>
+                        <option value="both">Person + Fallback-Personen</option>
+                    </select>
+                </div>
+                <div class="form-group" id="owner_user_1_wrap">
+                    <label>Owner Person</label>
+                    <select name="step_owner_user_1">
+                        <option value="">—</option>
+                        {% for u in users %}
+                            <option value="{{ u.id }}">{{ u.email }} ({{ u.role }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group" id="fallback_users_1_wrap">
+                    <label>Fallback Personen</label>
+                    <div class="combo" data-combo="step_fallback_users_1">
+                        <select class="combo-select">
+                            <option value="">Person auswählen…</option>
+                            {% for u in users %}
+                                <option value="{{ u.id }}">{{ u.email }} ({{ u.role }})</option>
+                            {% endfor %}
+                        </select>
+                        <div class="combo-chips" aria-live="polite"></div>
+                        <div class="combo-hidden"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button type="button" onclick="addStep()" class="btn btn-outline">+ Step hinzufügen</button>
+        <div style="margin-top: 1.5rem;">
+            <button type="submit" class="btn btn-primary">Workflow erstellen</button>
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <h2 class="card-title">Vorhandene Workflows</h2>
+    {% if workflows %}
+        <div class="list">
+            {% for workflow in workflows %}
+                <div class="list-item">
+                    <div class="flex-between" style="gap: 1rem; flex-wrap: wrap;">
+                        <div>
+                            <a href="/admin/workflows/{{ workflow.id }}" style="text-decoration:none;">
+                                <h3 style="margin:0 0 0.25rem;">{{ workflow.name }}</h3>
+                            </a>
+                            {% set m = workflow_meta.get(workflow.id) if workflow_meta else None %}
+                            {% if m %}
+                                <p style="margin:0; color: var(--text-secondary); font-size: 0.875rem;">
+                                    Jobs: {{ m.jobs_total }}{% if m.jobs_published > 0 %} ({{ m.jobs_published }} veröffentlicht){% endif %}
+                                    {% if m.step_instances > 0 %} • Bewerbungs-Steps: {{ m.step_instances }}{% endif %}
+                                </p>
+                            {% endif %}
+                        </div>
+                        <div class="btn-group">
+                            <a class="btn btn-outline btn-sm" href="/admin/workflows/{{ workflow.id }}">Details</a>
+                            <a class="btn btn-outline btn-sm" href="/admin/workflows/{{ workflow.id }}/edit">Bearbeiten</a>
+                            {% if m and m.deletable %}
+                                <form method="post" action="/admin/workflows/{{ workflow.id }}/delete" style="display:inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button class="btn btn-outline btn-sm" type="submit"
+                                            onclick="return confirm('Workflow wirklich löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.')">
+                                        Löschen
+                                    </button>
+                                </form>
+                            {% else %}
+                                <button class="btn btn-outline btn-sm" type="button" disabled title="Nur möglich, wenn keine veröffentlichten Jobs und keine Bewerbungen/Steps existieren.">
+                                    Löschen
+                                </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p style="color: var(--text-secondary);">Noch keine Workflows vorhanden.</p>
+    {% endif %}
+</div>
+
+<script>
+    let stepCount = 1;
+
+    function toggleOwnerFields(i, mode) {
+        const userWrap = document.getElementById(`owner_user_${i}_wrap`);
+        const fallbackWrap = document.getElementById(`fallback_users_${i}_wrap`);
+        if (!userWrap || !fallbackWrap) return;
+        userWrap.style.display = '';
+        fallbackWrap.style.display = (mode === 'both') ? '' : 'none';
+    }
+
+    function addStep() {
+        stepCount++;
+        const div = document.createElement('div');
+        div.className = 'form-row';
+        div.style.marginBottom = '1rem';
+        div.innerHTML = `
+            <div class="form-group">
+                <label>Step Name</label>
+                <input name="step_name" type="text" placeholder="z.B. Erstsichtung">
+            </div>
+            <div class="form-group">
+                <label>Step-Typ</label>
+                <select name="step_type_${stepCount}">
+                    <option value="standard" selected>Standard</option>
+                    <option value="unterlagen_check">Unterlagen-Check</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Owner Modus</label>
+                <select name="step_owner_mode_${stepCount}" onchange="toggleOwnerFields(${stepCount}, this.value)">
+                    <option value="user" selected>Person</option>
+                    <option value="both">Person + Fallback-Personen</option>
+                </select>
+            </div>
+            <div class="form-group" id="owner_user_${stepCount}_wrap">
+                <label>Owner Person</label>
+                <select name="step_owner_user_${stepCount}">
+                    <option value="">—</option>
+                    {% for u in users %}
+                        <option value="{{ u.id }}">{{ u.email }} ({{ u.role }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" id="fallback_users_${stepCount}_wrap">
+                <label>Fallback Personen</label>
+                <div class="combo" data-combo="step_fallback_users_${stepCount}">
+                    <select class="combo-select">
+                        <option value="">Person auswählen…</option>
+                        {% for u in users %}
+                            <option value="{{ u.id }}">{{ u.email }} ({{ u.role }})</option>
+                        {% endfor %}
+                    </select>
+                    <div class="combo-chips" aria-live="polite"></div>
+                    <div class="combo-hidden"></div>
+                </div>
+            </div>
+        `;
+        document.getElementById('steps').appendChild(div);
+        toggleOwnerFields(stepCount, 'user');
+        initComboBox(document.querySelector(`[data-combo="step_fallback_users_${stepCount}"]`));
+    }
+
+    // initial
+    toggleOwnerFields(1, 'user');
+    function initComboBox(combo) {
+        if (!combo) return;
+        const name = combo.getAttribute('data-combo');
+        const select = combo.querySelector('.combo-select');
+        const chips = combo.querySelector('.combo-chips');
+        const hidden = combo.querySelector('.combo-hidden');
+        const selected = new Map(); // id -> label
+
+        function render() {
+            chips.innerHTML = '';
+            hidden.innerHTML = '';
+            for (const [id, label] of selected.entries()) {
+                const chip = document.createElement('span');
+                chip.className = 'chip';
+                chip.innerHTML = `<span>${label}</span>`;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.title = 'Entfernen';
+                btn.textContent = '×';
+                btn.addEventListener('click', () => {
+                    selected.delete(id);
+                    render();
+                });
+                chip.appendChild(btn);
+                chips.appendChild(chip);
+
+                const inp = document.createElement('input');
+                inp.type = 'hidden';
+                inp.name = name;
+                inp.value = id;
+                hidden.appendChild(inp);
+            }
+        }
+
+        function tryAddFromSelect() {
+            if (!select) return;
+            const id = (select.value || '').trim();
+            if (!id) return;
+            const label = select.options[select.selectedIndex]?.textContent || `User #${id}`;
+            if (!selected.has(id)) {
+                selected.set(id, label);
+                render();
+            }
+            select.value = '';
+        }
+
+        if (select) {
+            select.addEventListener('change', tryAddFromSelect);
+        }
+        combo._comboSelected = selected;
+        render();
+    }
+
+    initComboBox(document.querySelector('[data-combo="step_fallback_users_1"]'));
+</script>
+{% endblock %}

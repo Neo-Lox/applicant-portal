@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+
+{% block title %}Bewerbung erhalten{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 600px; margin: 3rem auto; text-align: center;">
+    <div style="margin-bottom: 1rem; color: var(--success-color);">
+        {{ icon("check", 64, "icon") }}
+    </div>
+    <h1 style="margin-bottom: 1rem;">Danke für Ihre Bewerbung!</h1>
+    <div style="background: #eff6ff; padding: 1.5rem; border-radius: 6px; margin-bottom: 1.5rem;">
+        <p style="color: var(--text-secondary); margin-bottom: 0.5rem;">Ihre Referenznummer:</p>
+        <p style="font-size: 1.5rem; font-weight: 700; color: var(--primary-color);">
+            {{ application.reference_number or application.id }}
+        </p>
+    </div>
+    <p style="color: var(--text-secondary); margin-bottom: 2rem;">
+        Sie erhalten in Kürze eine Bestätigungs-E-Mail.
+    </p>
+    <a href="/" class="btn btn-primary">Zurück zur Startseite</a>
+</div>
+{% endblock %}

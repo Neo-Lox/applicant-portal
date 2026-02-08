@@ -1,0 +1,512 @@
+{% extends "base.html" %}
+
+{% block title %}Workflow bearbeiten – {{ workflow.name }}{% endblock %}
+
+{% block content %}
+<div class="wf-page">
+<div class="page-header">
+  <div class="flex-between">
+    <div>
+      <h1>Workflow bearbeiten</h1>
+      <p class="wf-subtitle">{{ workflow.name }}</p>
+    </div>
+    <div class="btn-group">
+      <a href="/admin/workflows/{{ workflow.id }}" class="btn btn-outline">← Details</a>
+      <a href="/admin/workflows" class="btn btn-outline">Alle Workflows</a>
+    </div>
+  </div>
+</div>
+
+{% if has_history %}
+  <div class="alert alert-error">
+    Hinweis: Dieser Workflow wird bereits in Bewerbungen verwendet (Step-Instanzen: {{ step_instances_count }}).
+    Zur Sicherheit sind <strong>Reihenfolge ändern</strong> und <strong>Steps löschen</strong> gesperrt.
+    Änderungen an <strong>Namen</strong> und <strong>Owner</strong> sind erlaubt (wirken v.a. für neue Bewerbungen).
+  </div>
+{% endif %}
+
+<div class="card">
+  <h2 class="card-title">Workflow</h2>
+  <form method="post" action="/admin/workflows/{{ workflow.id }}/edit">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Name *</label>
+        <input name="name" type="text" value="{{ workflow.name }}" required>
+        <p class="wf-help wf-help-tight">Tipp: Verwende einen eindeutigen Namen, z.B. Rolle + Standort + Version.</p>
+      </div>
+    </div>
+
+    <h3 class="wf-section-title">Steps</h3>
+    <p class="wf-help wf-section-help">
+      Steps werden in der Reihenfolge ausgeführt. Owner/Fallback wirkt v.a. für neue Bewerbungen.
+      {% if has_history %}<strong>Reihenfolge</strong> und <strong>Löschen</strong> sind gesperrt.{% endif %}
+    </p>
+    <div class="wf-step-toolbar" role="toolbar" aria-label="Steps Aktionen">
+      <div class="wf-step-toolbar-left">
+        <span class="wf-pill">Steps: {{ steps|length if steps else 0 }}</span>
+      </div>
+      <div class="wf-step-toolbar-right btn-group">
+        <button type="button" class="btn btn-outline btn-sm" data-steps-expand>Alles ausklappen</button>
+        <button type="button" class="btn btn-outline btn-sm" data-steps-collapse>Alles einklappen</button>
+        {% if not has_history %}
+          <button type="button" class="btn btn-outline btn-sm" data-steps-renumber title="Setzt Reihenfolge auf 1..N nach aktueller Anzeige">Neu nummerieren</button>
+        {% endif %}
+      </div>
+    </div>
+    {% if steps and steps|length > 0 %}
+      <div class="wf-steps">
+        {% for step in steps %}
+          {% set usage = step_usage.get(step.id, 0) if step_usage else 0 %}
+          <div class="wf-step-card" data-step-id="{{ step.id }}" {% if not has_history %}draggable="true"{% endif %}>
+            <div class="wf-step-header">
+              <div class="wf-step-title">
+                <span class="wf-pill wf-pill-order">Step <span class="wf-step-order-preview">{{ step.step_order }}</span></span>
+                <span class="wf-step-name-preview" title="{{ step.name }}">{{ step.name }}</span>
+                <span class="wf-pill wf-pill-type" {% if (step.step_type or 'standard') != 'unterlagen_check' %}style="display:none"{% endif %} title="Unterlagen-Check: Dokumente prüfen/anforderbar">Unterlagen-Check</span>
+                {% if usage > 0 %}
+                  <span class="wf-pill" title="Dieser Step wird bereits in Bewerbungen verwendet">{{ usage }}× verwendet</span>
+                {% endif %}
+              </div>
+              <div class="wf-step-actions">
+                {% if not has_history %}
+                  <button type="button" class="btn btn-outline btn-sm wf-drag-handle" draggable="true" title="Ziehen zum Sortieren" aria-label="Ziehen zum Sortieren">↕</button>
+                  <button type="button" class="btn btn-outline btn-sm" data-move="up" data-step="{{ step.id }}" title="Step nach oben">↑</button>
+                  <button type="button" class="btn btn-outline btn-sm" data-move="down" data-step="{{ step.id }}" title="Step nach unten">↓</button>
+                {% endif %}
+                {% if has_history or usage > 0 %}
+                  <button type="button" class="btn btn-outline btn-sm" disabled title="Step kann nicht gelöscht werden, wenn der Workflow bereits verwendet wurde.">
+                    Löschen
+                  </button>
+                {% else %}
+                  <button type="submit"
+                          class="btn btn-outline btn-sm"
+                          formmethod="post"
+                          formaction="/admin/workflows/{{ workflow.id }}/steps/{{ step.id }}/delete"
+                          onclick="return confirm('Step wirklich löschen?')">
+                    Löschen
+                  </button>
+                {% endif %}
+              </div>
+            </div>
+
+            <details class="wf-step-details" {% if loop.index == 1 %}open{% endif %}>
+              <summary class="wf-step-summary">
+                <span>Details bearbeiten</span>
+                <span class="wf-step-summary-hint">Name/Typ/Owner/Fallback</span>
+              </summary>
+              <div class="wf-step-body">
+                <div class="wf-step-grid">
+                  <div class="form-group wf-form-compact">
+                    <label>Reihenfolge</label>
+                    <input name="step_order_{{ step.id }}" type="number" min="1" value="{{ step.step_order }}" {% if has_history %}disabled{% endif %}>
+                  </div>
+                  <div class="form-group wf-form-compact">
+                    <label>Name</label>
+                    <input name="step_name_{{ step.id }}" type="text" value="{{ step.name }}" placeholder="z.B. Telefoninterview">
+                  </div>
+                  <div class="form-group wf-form-compact">
+                    <label>Step-Typ</label>
+                    <select name="step_type_{{ step.id }}">
+                      <option value="standard" {% if (step.step_type or 'standard') == 'standard' %}selected{% endif %}>Standard</option>
+                      <option value="unterlagen_check" {% if step.step_type == 'unterlagen_check' %}selected{% endif %}>Unterlagen-Check</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="wf-step-grid secondary">
+                  <div class="form-group wf-form-compact">
+                    <label>Owner (primär)</label>
+                    <select name="step_owner_user_{{ step.id }}">
+                      <option value="">—</option>
+                      {% for u in users %}
+                        <option value="{{ u.id }}" {% if step.owner_user_id == u.id %}selected{% endif %}>{{ u.email }} ({{ u.role }})</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="form-group wf-form-compact">
+                    <label>Fallback Personen</label>
+                    <div class="combo" data-combo="step_fallback_users_{{ step.id }}">
+                      <select class="combo-select">
+                        <option value="">Person auswählen…</option>
+                        {% for u in users %}
+                          <option value="{{ u.id }}">{{ u.email }} ({{ u.role }})</option>
+                        {% endfor %}
+                      </select>
+                      <div class="combo-chips" aria-live="polite"></div>
+                      <div class="combo-hidden">
+                        {% if step.fallback_users %}
+                          {% for u in step.fallback_users %}
+                            <input type="hidden" name="step_fallback_users_{{ step.id }}" value="{{ u.id }}">
+                          {% endfor %}
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </details>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="wf-empty">Keine Steps vorhanden.</p>
+    {% endif %}
+
+    <div class="wf-subcard">
+      <h3 class="wf-subcard-title">Neuen Step hinzufügen</h3>
+      <p class="wf-help wf-section-help">
+        Du kannst mehrere Steps hinzufügen. Entfernen geht hier direkt, bevor du speicherst.
+      </p>
+      <div id="newSteps" class="wf-steps"></div>
+      <button type="button" class="btn btn-outline" onclick="addNewStep()" {% if has_history %}title="Neue Steps wirken nur für neue Bewerbungen"{% endif %}>+ Step hinzufügen</button>
+    </div>
+
+    <div class="wf-actions-bar">
+      <div class="wf-dirty" id="wfDirty">Keine ungespeicherten Änderungen</div>
+      <div class="btn-group" style="margin:0;">
+        <button type="submit" class="btn btn-primary">Speichern</button>
+        <a href="/admin/workflows/{{ workflow.id }}" class="btn btn-outline">Abbrechen</a>
+      </div>
+    </div>
+  </form>
+</div>
+<div class="wf-page-spacer"></div>
+</div>
+
+<script>
+  function initComboBox(combo) {
+    if (!combo || combo._comboInit) return;
+    combo._comboInit = true;
+    const name = combo.getAttribute('data-combo');
+    const select = combo.querySelector('.combo-select');
+    const chips = combo.querySelector('.combo-chips');
+    const hidden = combo.querySelector('.combo-hidden');
+
+    const selected = new Map(); // id -> label
+
+    // Bootstrap from existing hidden inputs (edit existing steps)
+    const existingInputs = hidden.querySelectorAll(`input[type="hidden"][name="${name}"]`);
+    existingInputs.forEach(inp => {
+      const id = inp.value;
+      // Best-effort label from select options
+      let label = `User #${id}`;
+      if (select) {
+        const opts = Array.from(select.options);
+        const match = opts.find(o => o.value === id);
+        if (match) label = match.textContent;
+      }
+      selected.set(id, label);
+    });
+
+    function render() {
+      chips.innerHTML = '';
+      hidden.innerHTML = '';
+      for (const [id, label] of selected.entries()) {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.innerHTML = `<span>${label}</span>`;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.title = 'Entfernen';
+        btn.textContent = '×';
+        btn.addEventListener('click', () => {
+          selected.delete(id);
+          render();
+        });
+        chip.appendChild(btn);
+        chips.appendChild(chip);
+
+        const inp = document.createElement('input');
+        inp.type = 'hidden';
+        inp.name = name;
+        inp.value = id;
+        hidden.appendChild(inp);
+      }
+    }
+
+    function tryAddFromSelect() {
+      if (!select) return;
+      const id = (select.value || '').trim();
+      if (!id) return;
+      const label = select.options[select.selectedIndex]?.textContent || `User #${id}`;
+      if (!selected.has(id)) {
+        selected.set(id, label);
+        render();
+      }
+      select.value = '';
+    }
+
+    if (select) {
+      select.addEventListener('change', tryAddFromSelect);
+    }
+
+    render();
+  }
+
+  // init existing combos
+  (function () {
+    document.querySelectorAll('.combo[data-combo]').forEach(initComboBox);
+  })();
+
+  let newStepCount = 0;
+  function addNewStep() {
+    newStepCount++;
+    const maxExisting = Math.max(0, ...Array.from(document.querySelectorAll('input[name^="step_order_"]')).map(i => parseInt(i.value || '0', 10) || 0));
+    const defaultOrder = maxExisting + newStepCount;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'wf-step-card';
+    wrap.setAttribute('data-new-step', String(newStepCount));
+    wrap.innerHTML = `
+      <input type="hidden" name="new_step_ids" value="${newStepCount}">
+      <div class="wf-step-header">
+        <div class="wf-step-title">
+          <span class="wf-pill">Neuer Step</span>
+          <span class="wf-step-name-preview" title="—">—</span>
+          <span class="wf-pill wf-pill-type" style="display:none" title="Unterlagen-Check: Dokumente prüfen/anforderbar">Unterlagen-Check</span>
+        </div>
+        <div class="wf-step-actions">
+          <button type="button" class="btn btn-outline btn-sm" data-remove-new="${newStepCount}">Entfernen</button>
+        </div>
+      </div>
+      <details class="wf-step-details" open>
+        <summary class="wf-step-summary">
+          <span>Details bearbeiten</span>
+          <span class="wf-step-summary-hint">Name/Typ/Owner/Fallback</span>
+        </summary>
+        <div class="wf-step-body">
+          <div class="wf-step-grid">
+            <div class="form-group wf-form-compact">
+              <label>Reihenfolge</label>
+              <input name="new_step_order_${newStepCount}" type="number" min="1" value="${defaultOrder}">
+            </div>
+            <div class="form-group wf-form-compact">
+              <label>Step Name *</label>
+              <input name="new_step_name_${newStepCount}" type="text" required placeholder="z.B. Telefoninterview">
+            </div>
+            <div class="form-group wf-form-compact">
+              <label>Step-Typ</label>
+              <select name="new_step_type_${newStepCount}">
+                <option value="standard" selected>Standard</option>
+                <option value="unterlagen_check">Unterlagen-Check</option>
+              </select>
+            </div>
+          </div>
+          <div class="wf-step-grid secondary">
+            <div class="form-group wf-form-compact">
+              <label>Owner (primär)</label>
+              <select name="new_step_owner_user_${newStepCount}">
+                <option value="">—</option>
+                {% for u in users %}
+                  <option value="{{ u.id }}">{{ u.email }} ({{ u.role }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group wf-form-compact">
+              <label>Fallback Personen</label>
+              <div class="combo" data-combo="new_step_fallback_users_${newStepCount}">
+                <select class="combo-select">
+                  <option value="">Person auswählen…</option>
+                  {% for u in users %}
+                    <option value="{{ u.id }}">{{ u.email }} ({{ u.role }})</option>
+                  {% endfor %}
+                </select>
+                <div class="combo-chips" aria-live="polite"></div>
+                <div class="combo-hidden"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </details>
+    `;
+    document.getElementById('newSteps').appendChild(wrap);
+    initComboBox(document.querySelector(`[data-combo="new_step_fallback_users_${newStepCount}"]`));
+    // header preview for new steps
+    syncStepHeader(wrap);
+  }
+
+  // Remove new-step cards before submit
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-remove-new]');
+    if (!btn) return;
+    const id = btn.getAttribute('data-remove-new');
+    const card = document.querySelector(`.wf-step-card[data-new-step="${id}"]`);
+    if (card) card.remove();
+  });
+
+  // Reorder buttons (existing steps) - swaps DOM + order inputs
+  function syncStepHeader(card) {
+    if (!card) return;
+
+    // Existing steps
+    const orderInput = card.querySelector('input[name^="step_order_"], input[name^="new_step_order_"]');
+    const nameInput = card.querySelector('input[name^="step_name_"], input[name^="new_step_name_"]');
+    const typeSelect = card.querySelector('select[name^="step_type_"], select[name^="new_step_type_"]');
+
+    const orderPreview = card.querySelector('.wf-step-order-preview');
+    const namePreview = card.querySelector('.wf-step-name-preview');
+    const typePill = card.querySelector('.wf-pill-type');
+
+    if (orderPreview && orderInput) orderPreview.textContent = (orderInput.value || '').trim();
+    if (namePreview && nameInput) {
+      const v = (nameInput.value || '').trim();
+      namePreview.textContent = v || '—';
+      namePreview.title = v || '—';
+    }
+    if (typePill && typeSelect) {
+      const isDoc = (typeSelect.value || '') === 'unterlagen_check';
+      typePill.style.display = isDoc ? '' : 'none';
+    }
+  }
+
+  function renumberByDom(container) {
+    if (!container) return;
+    const cards = Array.from(container.querySelectorAll('.wf-step-card[data-step-id]'));
+    cards.forEach((card, idx) => {
+      const stepId = card.getAttribute('data-step-id');
+      const orderInput = card.querySelector(`input[name="step_order_${stepId}"]`);
+      if (orderInput) orderInput.value = String(idx + 1);
+      syncStepHeader(card);
+    });
+  }
+
+  function setAllDetails(open) {
+    document.querySelectorAll('.wf-step-details').forEach((d) => {
+      if (open) d.setAttribute('open', '');
+      else d.removeAttribute('open');
+    });
+  }
+
+  // initial sync for existing cards
+  (function () {
+    document.querySelectorAll('.wf-step-card').forEach(syncStepHeader);
+  })();
+
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-move]');
+    if (!btn) return;
+    const dir = btn.getAttribute('data-move');
+    const stepId = btn.getAttribute('data-step');
+    const card = document.querySelector(`.wf-step-card[data-step-id="${stepId}"]`);
+    if (!card) return;
+    const container = card.parentElement;
+    if (!container) return;
+
+    const sibling = dir === 'up' ? card.previousElementSibling : card.nextElementSibling;
+    if (!sibling || !sibling.matches('.wf-step-card[data-step-id]')) return;
+
+    if (dir === 'up') container.insertBefore(card, sibling);
+    else container.insertBefore(sibling, card);
+    renumberByDom(container);
+  });
+
+  // Live previews for header (name/order/type)
+  document.addEventListener('input', (e) => {
+    const el = e.target;
+    if (!el) return;
+    if (!el.matches('input[name^="step_order_"], input[name^="step_name_"], input[name^="new_step_order_"], input[name^="new_step_name_"]')) return;
+    syncStepHeader(el.closest('.wf-step-card'));
+  });
+  document.addEventListener('change', (e) => {
+    const el = e.target;
+    if (!el) return;
+    if (!el.matches('select[name^="step_type_"], select[name^="new_step_type_"]')) return;
+    syncStepHeader(el.closest('.wf-step-card'));
+  });
+
+  // Expand / collapse all
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-steps-expand]')) setAllDetails(true);
+    if (e.target.closest('[data-steps-collapse]')) setAllDetails(false);
+  });
+
+  // Renumber by DOM order (existing steps only)
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('[data-steps-renumber]')) return;
+    const list = document.querySelector('.wf-steps');
+    if (list) renumberByDom(list);
+  });
+
+  // Drag & drop reorder (existing steps only; guarded by handle)
+  (function () {
+    let draggingCard = null;
+    let lastDropTarget = null;
+
+    function clearDropTarget() {
+      if (lastDropTarget) lastDropTarget.classList.remove('is-drop-target');
+      lastDropTarget = null;
+    }
+
+    document.addEventListener('dragstart', (e) => {
+      const handle = e.target.closest('.wf-drag-handle');
+      if (!handle) return;
+      const card = handle.closest('.wf-step-card[data-step-id]');
+      if (!card) return;
+      if (!card.hasAttribute('draggable')) return;
+      draggingCard = card;
+      clearDropTarget();
+      card.classList.add('is-dragging');
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', card.getAttribute('data-step-id') || '');
+      }
+    });
+
+    document.addEventListener('dragend', () => {
+      if (draggingCard) draggingCard.classList.remove('is-dragging');
+      draggingCard = null;
+      clearDropTarget();
+    });
+
+    document.addEventListener('dragover', (e) => {
+      if (!draggingCard) return;
+      const target = e.target.closest('.wf-step-card[data-step-id]');
+      if (!target || target === draggingCard) return;
+      if (target.parentElement !== draggingCard.parentElement) return;
+      e.preventDefault();
+      clearDropTarget();
+      target.classList.add('is-drop-target');
+      lastDropTarget = target;
+    });
+
+    document.addEventListener('drop', (e) => {
+      if (!draggingCard) return;
+      const target = e.target.closest('.wf-step-card[data-step-id]');
+      if (!target || target === draggingCard) return;
+      if (target.parentElement !== draggingCard.parentElement) return;
+      e.preventDefault();
+      const rect = target.getBoundingClientRect();
+      const before = (e.clientY - rect.top) < (rect.height / 2);
+      if (before) target.parentElement.insertBefore(draggingCard, target);
+      else target.parentElement.insertBefore(draggingCard, target.nextSibling);
+      renumberByDom(target.parentElement);
+      clearDropTarget();
+    });
+  })();
+
+  // Dirty state + navigation guard
+  (function () {
+    const form = document.querySelector('form[action$="/edit"]');
+    const dirtyEl = document.getElementById('wfDirty');
+    if (!form || !dirtyEl) return;
+    let dirty = false;
+    const markDirty = () => {
+      if (dirty) return;
+      dirty = true;
+      dirtyEl.textContent = 'Ungespeicherte Änderungen';
+    };
+    form.addEventListener('input', markDirty);
+    form.addEventListener('change', markDirty);
+    window.addEventListener('beforeunload', (ev) => {
+      if (!dirty) return;
+      ev.preventDefault();
+      ev.returnValue = '';
+    });
+    form.addEventListener('submit', () => {
+      dirty = false;
+    });
+  })();
+</script>
+{% endblock %}
+

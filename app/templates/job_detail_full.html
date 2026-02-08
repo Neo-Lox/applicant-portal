@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+
+{% block title %}{{ job.title if job else "Stelle nicht gefunden" }}{% endblock %}
+
+{% block content %}
+{% if not job %}
+    <div class="card">
+        <p>Stelle nicht gefunden.</p>
+        <a href="/" class="btn btn-primary">Zurück zur Übersicht</a>
+    </div>
+{% else %}
+    <div class="page-header">
+        <div class="flex-between">
+            <div>
+                <h1>{{ job.title }}</h1>
+                <div style="display:flex; gap: 1rem; flex-wrap: wrap; color: var(--text-secondary);">
+                    {% if job.location %}<span>{{ icon("location") }} {{ job.location }}</span>{% endif %}
+                    {% if job.department %}<span>{{ icon("building") }} {{ job.department }}</span>{% endif %}
+                    {% if job.employment_type %}<span>{{ icon("clock") }} {{ job.employment_type }}</span>{% endif %}
+                </div>
+            </div>
+            <div class="btn-group">
+                <a href="/jobs/{{ job.id }}#apply" class="btn btn-primary">Jetzt bewerben</a>
+                <a href="/" class="btn btn-outline">Zurück</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 class="card-title">Stellenbeschreibung</h2>
+        {% if job.description %}
+            <p class="job-description">{{ job.description }}</p>
+        {% else %}
+            <p style="color: var(--text-secondary);">Keine Beschreibung vorhanden.</p>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h2 class="card-title">Anforderungen</h2>
+        {% if job.requirements %}
+            <p style="white-space: pre-wrap;">{{ job.requirements }}</p>
+        {% else %}
+            <p style="color: var(--text-secondary);">Keine Anforderungen hinterlegt.</p>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h2 class="card-title">Bewerbung</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+            Du kannst direkt ohne Account bewerben. Das Formular findest du hier:
+        </p>
+        <a href="/jobs/{{ job.id }}#apply" class="btn btn-primary">Zum Bewerbungsformular</a>
+    </div>
+{% endif %}
+{% endblock %}
+
