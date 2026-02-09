@@ -1,172 +1,100 @@
-# Applicant Portal - ATS MVP
+# Neo Lox Applicant Portal (ATS)
 
-Flask-based Applicant Tracking System with public job portal and internal workflow management.
+Flask-based **Applicant Tracking System (ATS)** for Neo Lox GmbH: public job portal + internal recruiting workflow + secure candidate document uploads via **magic links** (no candidate login required).
 
-## Prerequisites
+## Key features
 
-- Python 3.8+ installed
-- PostgreSQL database (or use SQLite for development)
-- pip (Python package manager)
+- **Public portal**: job listings, job detail pages, application form
+- **Internal portal**: application inbox, workflow steps, notes, attachments
+- **Document requests**: recruiter sends magic-link, candidate uploads required files fast
+- **Upload security**:
+  - magic tokens are **hashed** server-side
+  - pages are served with **no-store** caching headers
+  - brute-force protection + token expiry
+- **Limits & quotas (default)**:
+  - PDF: **10 MB per file**
+  - Images: **5 MB per file**
+  - Magic-link request body: **50 MB per request**
+  - Total storage per application: **150 MB**
 
-## Quick Start
+## Quickstart (Windows / PowerShell)
 
-### 1. Install Python Dependencies
+If you just want it running locally:
 
 ```powershell
-# Create virtual environment
-python -m venv .venv
-
-# Activate virtual environment
+.\setup.ps1
 .\.venv\Scripts\Activate.ps1
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
-### 2. Set Up Database
-
-#### Option A: PostgreSQL (Production)
-
-1. Create database:
-```powershell
-createdb applicant_portal
-```
-
-2. Run migrations:
-```powershell
-psql -d applicant_portal -f migrations/001_create_magic_link_tokens.sql
-psql -d applicant_portal -f migrations/002_create_mvp_schema.sql
-```
-
-3. Set environment variable:
-```powershell
-$env:DATABASE_URL="postgresql://username:password@localhost/applicant_portal"
-```
-
-#### Option B: SQLite (Development - Easy)
-
-The app will automatically use SQLite if `DATABASE_URL` is not set. However, you'll need to create tables using Flask:
-
-```powershell
-$env:FLASK_APP="wsgi.py"
-flask db init  # If using Flask-Migrate
-# Or run SQL files manually against SQLite
-```
-
-**Note:** The current SQL migrations use PostgreSQL-specific syntax. For SQLite, you may need to adjust or use Flask-Migrate.
-
-### 3. Set Environment Variables
-
-```powershell
-$env:FLASK_APP="wsgi.py"
-$env:FLASK_ENV="development"
-$env:SECRET_KEY="your-secret-key-change-this"
-$env:MAGIC_LINK_HMAC_SECRET="your-hmac-secret-change-this"
-$env:DATABASE_URL="postgresql://localhost/applicant_portal"  # Optional, defaults to SQLite
-```
-
-### 4. Seed Initial Data
-
-```powershell
+flask init-db
 flask seed-mvp
+flask --app wsgi run --port 5002
 ```
 
-This creates:
-- Admin user: `admin@example.com` / `admin123`
-- Sample workflow: "Triebfahrzeugführer Standard"
-- Sample job posting
+Open:
+- **Public portal**: `http://127.0.0.1:5002/`
+- **Internal login**: `http://127.0.0.1:5002/login`
 
-### 5. Run the Application
+Default seeded credentials (development only):
+- **Email**: `admin@example.com`
+- **Password**: `admin123`
+
+## Configuration
+
+Copy and adjust:
 
 ```powershell
-flask run
+Copy-Item .\env.local.example .\env.local
 ```
 
-The app will be available at:
-- **Public portal:** http://127.0.0.1:5000/
-- **Internal login:** http://127.0.0.1:5000/login
+Relevant settings are in `app/config.py` and can be overridden via environment variables:
+- **Secrets**: `SECRET_KEY`, `MAGIC_LINK_HMAC_SECRET`
+- **Database**: `DATABASE_URL` (defaults to SQLite)
+- **Upload**:
+  - `UPLOAD_MAX_FILE_BYTES_PDF` (default 10 MB)
+  - `UPLOAD_MAX_FILE_BYTES_IMAGE` (default 5 MB)
+  - `UPLOAD_MAX_BYTES_MAGIC_LINK` (default 50 MB)
+  - `UPLOAD_MAX_TOTAL_BYTES_PER_APPLICATION` (default 150 MB)
 
-## Default Login Credentials
-
-- **Email:** admin@example.com
-- **Password:** admin123
-
-**⚠️ Change these in production!**
-
-## Project Structure
+## Project structure
 
 ```
 app/
-  routes/          # Flask route handlers
-    public.py      # Public job pages
-    internal.py    # Internal application management
-    auth.py        # Authentication
-    magic_links.py # Magic-link upload flow
-  templates/       # Jinja2 templates
-  models.py        # SQLAlchemy models
-  config.py        # Configuration
-  security.py      # Token/security utilities
-  storage.py       # File storage handling
-  auth.py          # Auth utilities
-migrations/        # SQL migration files
+  routes/                # Flask blueprints
+    public.py            # Public job pages + legal pages
+    internal.py          # Internal application management
+    auth.py              # Authentication (internal)
+    magic_links.py       # Candidate magic-link upload flow
+  templates/             # Jinja2 templates
+  static/                # CSS/assets
+  models.py              # SQLAlchemy models
+  storage.py             # File storage (local by default)
+  security.py            # Token + security helpers
+migrations/              # SQL migration files
+wsgi.py                  # App entrypoint
 ```
-
-## Features
-
-- ✅ Public job listings and application form
-- ✅ Internal application management dashboard
-- ✅ Configurable workflow steps per job
-- ✅ Magic-link for document uploads (no login required)
-- ✅ Notes, attachments, and step transitions
-- ✅ Basic authentication for internal users
 
 ## Development
 
-### Running Migrations
+Common commands:
 
-If using PostgreSQL, run SQL files directly:
 ```powershell
-psql -d applicant_portal -f migrations/001_create_magic_link_tokens.sql
-psql -d applicant_portal -f migrations/002_create_mvp_schema.sql
+.\.venv\Scripts\Activate.ps1
+flask --app wsgi run --port 5002
 ```
 
-### Creating New Users
+Cleanup expired magic links:
 
-Use Flask CLI:
-```powershell
-flask create-user email@example.com password123
-```
-
-### Cleanup Tasks
-
-Clean expired magic-link tokens:
 ```powershell
 flask cleanup-magic-links
 ```
 
-## Production Considerations
+## Production notes (high level)
 
-1. **Change default secrets:** Set strong `SECRET_KEY` and `MAGIC_LINK_HMAC_SECRET`
-2. **Use PostgreSQL:** SQLite is for development only
-3. **Configure file storage:** Update `app/storage.py` for S3/Azure Blob
-4. **Set up email:** Configure `app/email.py` with your SMTP provider
-5. **Enable HTTPS:** Set `SESSION_COOKIE_SECURE=True` in production
-6. **Change admin password:** Update default admin credentials
+- Use a real WSGI server (gunicorn/uvicorn behind reverse proxy).
+- Set strong secrets and `PUBLIC_BASE_URL`.
+- Use Postgres in production.
+- Configure a durable file storage backend (S3/Azure Blob/etc.).
+- Keep HTTPS enabled (`SESSION_COOKIE_SECURE=True` in production config).
 
-## Troubleshooting
+## License
 
-### Database Connection Errors
-
-- Check `DATABASE_URL` environment variable
-- Ensure PostgreSQL is running
-- Verify database exists: `psql -l | grep applicant_portal`
-
-### Import Errors
-
-- Ensure virtual environment is activated
-- Reinstall dependencies: `pip install -r requirements.txt`
-
-### Migration Errors
-
-- Ensure database is empty or migrations are run in order
-- Check PostgreSQL version (requires 9.5+ for JSONB)
+**Proprietary / internal** — Neo Lox GmbH.

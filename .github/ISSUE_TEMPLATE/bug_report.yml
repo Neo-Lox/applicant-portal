@@ -1,0 +1,54 @@
+name: Bug report
+description: Report a reproducible problem in the applicant portal.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please include as much detail as possible.
+
+  - type: input
+    id: affected_area
+    attributes:
+      label: Affected area
+      description: Where is the bug?
+      placeholder: "Public portal / Internal portal / Magic-link upload / Admin"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Exact steps so we can reproduce.
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. See error ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / screenshots
+      description: Paste relevant logs or attach screenshots.
+      render: shell
+    validations:
+      required: false
+
