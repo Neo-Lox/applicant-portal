@@ -1,25 +1,25 @@
-# Neo Lox Applicant Portal (ATS)
+# Neo Lox Bewerberportal (ATS)
 
-Flask-based **Applicant Tracking System (ATS)** for Neo Lox GmbH: public job portal + internal recruiting workflow + secure candidate document uploads via **magic links** (no candidate login required).
+Flask-basiertes **Applicant Tracking System (ATS)** / Bewerbermanagement-System für Neo Lox GmbH: öffentliches Jobportal + interner Recruiting-Workflow + sichere Dokumenten-Uploads durch Kandidat:innen via **Magic Links** (kein Kandidat:innen-Login erforderlich).
 
-## Key features
+## Hauptfunktionen
 
-- **Public portal**: job listings, job detail pages, application form
-- **Internal portal**: application inbox, workflow steps, notes, attachments
-- **Document requests**: recruiter sends magic-link, candidate uploads required files fast
-- **Upload security**:
-  - magic tokens are **hashed** server-side
-  - pages are served with **no-store** caching headers
-  - brute-force protection + token expiry
-- **Limits & quotas (default)**:
-  - PDF: **10 MB per file**
-  - Images: **5 MB per file**
-  - Magic-link request body: **50 MB per request**
-  - Total storage per application: **150 MB**
+- **Öffentliches Portal**: Stellenliste, Stellen-Detailseiten, Bewerbungsformular
+- **Internes Portal**: Bewerbungseingang, Workflow-Schritte, Notizen, Anhänge
+- **Dokumentenanforderungen**: Recruiter:in sendet Magic Link, Kandidat:in lädt benötigte Dateien schnell hoch
+- **Upload-Sicherheit**:
+  - Magic-Tokens werden serverseitig **gehasht**
+  - Seiten werden mit **no-store**-Cache-Headern ausgeliefert
+  - Brute-Force-Schutz + Token-Ablauf
+- **Limits & Quoten (Standard)**:
+  - PDF: **10 MB pro Datei**
+  - Bilder: **5 MB pro Datei**
+  - Magic-Link Request Body: **50 MB pro Request**
+  - Gesamtspeicher pro Bewerbung: **150 MB**
 
-## Quickstart (Windows / PowerShell)
+## Schnellstart (Windows / PowerShell)
 
-If you just want it running locally:
+Wenn du es einfach lokal starten willst:
 
 ```powershell
 .\setup.ps1
@@ -29,72 +29,74 @@ flask seed-mvp
 flask --app wsgi run --port 5002
 ```
 
-Open:
-- **Public portal**: `http://127.0.0.1:5002/`
-- **Internal login**: `http://127.0.0.1:5002/login`
+Öffnen:
+- **Öffentliches Portal**: `http://127.0.0.1:5002/`
+- **Internes Login**: `http://127.0.0.1:5002/login`
 
-Default seeded credentials (development only):
-- **Email**: `admin@example.com`
-- **Password**: `admin123`
+Standard-Seed-Credentials (nur Entwicklung):
+- **E-Mail**: `admin@example.com`
+- **Passwort**: `admin123`
 
-## Configuration
+## Konfiguration
 
-Copy and adjust:
+Kopieren und anpassen:
 
 ```powershell
 Copy-Item .\env.local.example .\env.local
 ```
 
-Relevant settings are in `app/config.py` and can be overridden via environment variables:
+Relevante Einstellungen stehen in `app/config.py` und können über Environment Variables überschrieben werden:
 - **Secrets**: `SECRET_KEY`, `MAGIC_LINK_HMAC_SECRET`
-- **Database**: `DATABASE_URL` (defaults to SQLite)
-- **Upload**:
-  - `UPLOAD_MAX_FILE_BYTES_PDF` (default 10 MB)
-  - `UPLOAD_MAX_FILE_BYTES_IMAGE` (default 5 MB)
-  - `UPLOAD_MAX_BYTES_MAGIC_LINK` (default 50 MB)
-  - `UPLOAD_MAX_TOTAL_BYTES_PER_APPLICATION` (default 150 MB)
+- **Datenbank**: `DATABASE_URL` (Standard: SQLite)
+- **Uploads**:
+  - `UPLOAD_MAX_FILE_BYTES_PDF` (Standard 10 MB)
+  - `UPLOAD_MAX_FILE_BYTES_IMAGE` (Standard 5 MB)
+  - `UPLOAD_MAX_BYTES_MAGIC_LINK` (Standard 50 MB)
+  - `UPLOAD_MAX_TOTAL_BYTES_PER_APPLICATION` (Standard 150 MB)
 
-## Project structure
+Hinweis: Ein PostgreSQL-Setup ist in `POSTGRESQL_SETUP.md` beschrieben.
+
+## Projektstruktur
 
 ```
 app/
-  routes/                # Flask blueprints
-    public.py            # Public job pages + legal pages
-    internal.py          # Internal application management
-    auth.py              # Authentication (internal)
-    magic_links.py       # Candidate magic-link upload flow
-  templates/             # Jinja2 templates
-  static/                # CSS/assets
-  models.py              # SQLAlchemy models
-  storage.py             # File storage (local by default)
-  security.py            # Token + security helpers
-migrations/              # SQL migration files
-wsgi.py                  # App entrypoint
+  routes/                # Flask Blueprints
+    public.py            # Öffentliches Jobportal + rechtliche Seiten
+    internal.py          # Internes Bewerbungs-Management
+    auth.py              # Authentifizierung (intern)
+    magic_links.py       # Magic-Link Upload-Flow für Kandidat:innen
+  templates/             # Jinja2 Templates
+  static/                # CSS/Assets
+  models.py              # SQLAlchemy Models
+  storage.py             # File Storage (standardmäßig lokal)
+  security.py            # Token- + Security-Helper
+migrations/              # SQL-Migrationsdateien
+wsgi.py                  # App-Entrypoint
 ```
 
-## Development
+## Entwicklung
 
-Common commands:
+Häufige Befehle:
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
 flask --app wsgi run --port 5002
 ```
 
-Cleanup expired magic links:
+Abgelaufene Magic Links bereinigen:
 
 ```powershell
 flask cleanup-magic-links
 ```
 
-## Production notes (high level)
+## Hinweise für Produktion (High Level)
 
-- Use a real WSGI server (gunicorn/uvicorn behind reverse proxy).
-- Set strong secrets and `PUBLIC_BASE_URL`.
-- Use Postgres in production.
-- Configure a durable file storage backend (S3/Azure Blob/etc.).
-- Keep HTTPS enabled (`SESSION_COOKIE_SECURE=True` in production config).
+- Einen echten WSGI-Server verwenden (gunicorn/uvicorn hinter Reverse Proxy).
+- Starke Secrets sowie `PUBLIC_BASE_URL` setzen.
+- In Produktion Postgres verwenden.
+- Ein robustes File-Storage-Backend konfigurieren (S3/Azure Blob/etc.).
+- HTTPS aktiv lassen (`SESSION_COOKIE_SECURE=True` in der Production-Config).
 
-## License
+## Lizenz
 
-**Proprietary / internal** — Neo Lox GmbH.
+**Proprietär / intern** — Neo Lox GmbH.
