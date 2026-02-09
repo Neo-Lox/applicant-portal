@@ -101,7 +101,10 @@ class Application(db.Model):
     candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id"), nullable=False, index=True)
     job_id = db.Column(db.Integer, db.ForeignKey("job_postings.id"), nullable=False, index=True)
     status = db.Column(db.String(50), nullable=False, default="new")
-    current_step_id = db.Column(db.Integer, db.ForeignKey("workflow_steps.id"), nullable=True, index=True)
+    # IMPORTANT: This app uses current_step_id as the active ApplicationStepInstance.id.
+    # We intentionally do NOT enforce a foreign key here to avoid a circular FK
+    # between applications <-> application_step_instances.
+    current_step_id = db.Column(db.Integer, nullable=True, index=True)
     source = db.Column(db.String(100), nullable=True)
     reference_number = db.Column(db.String(50), nullable=True, unique=True, index=True)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.utcnow)

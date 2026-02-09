@@ -5,9 +5,13 @@ import re
 # because Config reads os.environ at import-time.
 try:
     from dotenv import load_dotenv
+    from pathlib import Path
 
-    load_dotenv()  # loads .env if present
-    load_dotenv("env.local")  # non-dotfile alternative
+    # Be robust to different working directories (e.g. Flask reloader process):
+    # always resolve env files relative to the project root.
+    _ROOT = Path(__file__).resolve().parent.parent
+    load_dotenv(_ROOT / ".env")       # optional
+    load_dotenv(_ROOT / "env.local")  # local dev config (gitignored)
 except Exception:
     pass
 
