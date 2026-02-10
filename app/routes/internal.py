@@ -73,6 +73,24 @@ def _normalize_scheduled_at(raw: str | None) -> tuple[str | None, str | None]:
     except Exception:
         return None, "Termin-Format ungültig. Bitte Datum & Uhrzeit auswählen."
 
+
+def _naive_utc(dt: datetime | None) -> datetime | None:
+    """
+    Normalize datetimes to naive UTC.
+
+    Needed because PostgreSQL returns timezone-aware datetimes for timezone-aware columns,
+    while templates (and some SQLite setups) often assume naive timestamps.
+    """
+    if not dt:
+        return None
+    if getattr(dt, "tzinfo", None) is not None:
+        try:
+            return dt.astimezone(timezone.utc).replace(tzinfo=None)
+        except Exception:
+            return dt.replace(tzinfo=None)
+    return dt
+
+
 STATUS_META = {
     "new": {"label": "Neu", "badge": "new"},
     "in_progress": {"label": "In Bearbeitung", "badge": "in-progress"},
@@ -381,8 +399,18 @@ def applications():
         seen_at=None
     ).count()
 
-    # Use naive UTC for template math (SQLite timestamps are often naive)
-    now = datetime.utcnow()
+    # Use timezone-aware UTC for consistent datetime math across SQLite/PostgreSQL
+    now = datetime.now(timezone.utc)
+    days_old_by_app_id: dict[int, int] = {}
+    for a in applications_list:
+        created_at = getattr(a, "created_at", None)
+        if created_at:
+            # Ensure created_at is timezone-aware (for SQLite compatibility)
+            if getattr(created_at, "tzinfo", None) is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+            days_old_by_app_id[int(a.id)] = int((now - created_at).days)
+        else:
+            days_old_by_app_id[int(a.id)] = 0
 
     return render_template(
         "internal_applications.html",
@@ -399,6 +427,7 @@ def applications():
         unread_notifications=unread_count,
         tab_counts=tab_counts,
         active_tab=tab,
+        days_old_by_app_id=days_old_by_app_id,
         now=now,
     )
 
@@ -461,16 +490,6 @@ def application_detail(application_id: int):
     received = sum(1 for n in doc_items if status_by_node.get(n.id) == "received")
     missing = sum(1 for n in doc_items if status_by_node.get(n.id, "missing") == "missing" and n.required)
     wrong = sum(1 for n in doc_items if status_by_node.get(n.id) == "wrong")
-
-    def _naive_utc(dt):
-        if not dt:
-            return None
-        if getattr(dt, "tzinfo", None) is not None:
-            try:
-                return dt.astimezone(timezone.utc).replace(tzinfo=None)
-            except Exception:
-                return dt.replace(tzinfo=None)
-        return dt
 
     doc_nodes_by_id = {n.id: n for n in doc_nodes}
 
@@ -591,7 +610,7 @@ def application_detail(application_id: int):
         can_manage_application=can_manage,
         error=request.args.get("error"),
         success=request.args.get("success"),
-        now=datetime.utcnow(),
+        now=datetime.now(timezone.utc),
     )
 
 

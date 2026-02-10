@@ -122,7 +122,7 @@
             {% set step_info = current_steps.get(application.id) %}
             {% set action = next_actions.get(application.id) %}
             {% set is_mine = action.can_act if action else false %}
-            {% set days_old = ((now - application.created_at).days) if application.created_at else 0 %}
+            {% set days_old = days_old_by_app_id.get(application.id, 0) %}
             {% set status = status_meta.get(application.status, {'label': application.status, 'badge': 'in-progress'}) %}
             {% set preview = notif_preview_by_app_id.get(application.id) %}
             
