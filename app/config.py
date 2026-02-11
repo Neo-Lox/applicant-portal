@@ -1,6 +1,9 @@
 import os
 
 _INSECURE_SECRETS = {"dev-secret-change-me", "dev-change-me", "dev-hmac-secret", ""}
+_IS_VERCEL = str(os.environ.get("VERCEL") or "").strip().lower() in {"1", "true", "yes"} or bool(
+    os.environ.get("VERCEL_ENV")
+)
 
 
 class Config:
@@ -36,9 +39,13 @@ class Config:
     RETENTION_MONTHS = int(os.environ.get("RETENTION_MONTHS", "6"))
 
     # Upload limits
-    MAX_CONTENT_LENGTH = int(os.environ.get("UPLOAD_MAX_BYTES", "10485760"))  # 10 MB
+    # Note: Vercel Functions have a ~4.5 MB request body limit. Default lower there to avoid
+    # confusing UI/UX (requests would fail before Flask can enforce its own limit).
+    MAX_CONTENT_LENGTH = int(os.environ.get("UPLOAD_MAX_BYTES", "4194304" if _IS_VERCEL else "10485760"))
     UPLOAD_MAX_BYTES_APPLY = int(os.environ.get("UPLOAD_MAX_BYTES_APPLY", str(MAX_CONTENT_LENGTH)))
-    UPLOAD_MAX_BYTES_MAGIC_LINK = int(os.environ.get("UPLOAD_MAX_BYTES_MAGIC_LINK", "52428800"))  # 50 MB
+    UPLOAD_MAX_BYTES_MAGIC_LINK = int(
+        os.environ.get("UPLOAD_MAX_BYTES_MAGIC_LINK", str(MAX_CONTENT_LENGTH) if _IS_VERCEL else "52428800")
+    )  # 50 MB (non-serverless)
     UPLOAD_MAX_FILE_BYTES_PDF = int(os.environ.get("UPLOAD_MAX_FILE_BYTES_PDF", "10485760"))  # 10 MB
     UPLOAD_MAX_FILE_BYTES_IMAGE = int(os.environ.get("UPLOAD_MAX_FILE_BYTES_IMAGE", "5242880"))  # 5 MB
     UPLOAD_MAX_TOTAL_BYTES_PER_APPLICATION = int(os.environ.get("UPLOAD_MAX_TOTAL_BYTES_PER_APPLICATION", "157286400"))  # 150 MB
@@ -75,6 +82,13 @@ class Config:
 
     # Storage
     STORAGE_MODE = os.environ.get("STORAGE_MODE", "local")
+
+    # Supabase
+    SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+    SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
+    SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+    SUPABASE_STORAGE_BUCKET = os.environ.get("SUPABASE_STORAGE_BUCKET", "applicant-documents")
+    SUPABASE_AUTH_ENABLED = os.environ.get("SUPABASE_AUTH_ENABLED", "false").lower() in ("true", "1", "yes")
 
 
 class DevConfig(Config):
@@ -135,3 +149,10 @@ class DevConfig(Config):
     )
 
     STORAGE_MODE = os.environ.get("STORAGE_MODE", "local")
+
+    # Supabase
+    SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+    SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
+    SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+    SUPABASE_STORAGE_BUCKET = os.environ.get("SUPABASE_STORAGE_BUCKET", "applicant-documents")
+    SUPABASE_AUTH_ENABLED = os.environ.get("SUPABASE_AUTH_ENABLED", "false").lower() in ("true", "1", "yes")

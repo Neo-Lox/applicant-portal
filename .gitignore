@@ -39,3 +39,10 @@ Desktop.ini
 
 # Cursor
 .cursor/
+
+# Supabase migration artifacts (often contain credentials / one-off notes)
+SUPABASE_MIGRATION_COMPLETE.md
+migrate_to_supabase.py
+migrate_via_api.py
+supabase_schema.sql
+test_supabase_connection.py

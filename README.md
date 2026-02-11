@@ -97,6 +97,38 @@ flask cleanup-magic-links
 - Ein robustes File-Storage-Backend konfigurieren (S3/Azure Blob/etc.).
 - HTTPS aktiv lassen (`SESSION_COOKIE_SECURE=True` in der Production-Config).
 
+## Deployment auf Vercel (Serverless)
+
+Dieses Repo kann auf Vercel als **Python Function** deployed werden (Flask wird als WSGI-App ausgeliefert).
+
+### Setup
+
+1. Repo in Vercel importieren (Framework Preset: **Other**).
+2. Keine speziellen Build-Commands nötig (Vercel erkennt `api/index.py`).
+3. Environment Variables in Vercel setzen (Project Settings → Environment Variables):
+   - `SECRET_KEY` (**required**, sicherer Zufallswert)
+   - `MAGIC_LINK_HMAC_SECRET` (**required**, sicherer Zufallswert)
+   - `DATABASE_URL` (**stark empfohlen**: Postgres; SQLite ist in Serverless nicht dauerhaft)
+   - `PUBLIC_BASE_URL` (z. B. `https://<dein-projekt>.vercel.app`)
+   - Optional (E-Mail via Microsoft Graph): `M365_TENANT_ID`, `M365_CLIENT_ID`, `M365_CLIENT_SECRET`, `M365_SENDER_UPN`
+
+4. Datenbank initialisieren (einmalig) gegen deine Produktions-DB:
+   - Setze lokal `DATABASE_URL` auf dieselbe Postgres-URL wie in Vercel und führe aus:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+flask init-db
+flask seed-mvp
+```
+
+### Wichtige Einschränkungen auf Vercel
+
+- **Upload-Limit**: Vercel Functions haben ein Request-Body-Limit von ca. **4.5 MB**. Größere Datei-Uploads (oder mehrere Dateien in einem Request) schlagen fehl.
+  - Wenn du Vercel nutzen willst, setze deine Upload-Env-Variablen entsprechend niedriger (z. B. `UPLOAD_MAX_BYTES`, `UPLOAD_MAX_BYTES_APPLY`, `UPLOAD_MAX_BYTES_MAGIC_LINK`).
+- **Kein dauerhaftes Filesystem**: In Serverless ist das Dateisystem nicht persistent. Diese App speichert Uploads lokal; auf Vercel landen sie (zur Crash-Vermeidung) unter `/tmp` und sind **nicht dauerhaft**.
+  - Für Produktion brauchst du ein echtes Storage-Backend (S3/Azure Blob/etc.) und eine Anpassung der Storage-Schicht.
+- **DB-Persistenz**: SQLite ist auf Vercel ebenfalls nicht zuverlässig/persistent. Für Produktion nutze Postgres über `DATABASE_URL`.
+
 ## Lizenz
 
 **Proprietär / intern** — Neo Lox GmbH.

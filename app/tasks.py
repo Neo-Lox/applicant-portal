@@ -80,8 +80,8 @@ def register_cli(app):
     @app.cli.command("cleanup-retention")
     def cleanup_retention():
         """Delete applications older than RETENTION_MONTHS (approx months*30 days) and remove local files."""
-        import os
         from datetime import timedelta
+        from .storage import delete_file
 
         months = int(app.config.get("RETENTION_MONTHS", 6))
         cutoff = datetime.now(timezone.utc) - timedelta(days=months * 30)
@@ -94,8 +94,8 @@ def register_cli(app):
             attachments = Attachment.query.filter_by(application_id=application.id).all()
             for att in attachments:
                 try:
-                    if att.file_url and os.path.exists(att.file_url):
-                        os.remove(att.file_url)
+                    if att.file_url:
+                        delete_file(att.file_url)
                         deleted_files += 1
                 except Exception:
                     pass

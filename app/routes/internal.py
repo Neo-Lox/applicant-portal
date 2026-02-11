@@ -26,6 +26,7 @@ from ..models import (
     workflow_step_fallback_users,
 )
 from ..security import issue_magic_link
+from ..storage import get_file_url
 from ..url_utils import public_url_for
 
 internal = Blueprint("internal", __name__, url_prefix="/internal")
@@ -1207,6 +1208,15 @@ def download_attachment(application_id: int, attachment_id: int):
         return "File not found", 404
 
     file_path = attachment.file_url
+    storage_mode = (current_app.config.get("STORAGE_MODE") or "local").strip().lower()
+    if storage_mode == "supabase":
+        # Stored value is an object path; redirect to a short-lived signed URL.
+        try:
+            signed = get_file_url(file_path, expires_in=120)
+            return redirect(signed)
+        except Exception:
+            return "File not found on server", 404
+
     if not os.path.exists(file_path):
         return "File not found on server", 404
 
