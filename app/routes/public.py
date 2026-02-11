@@ -13,6 +13,7 @@ from ..models import (
     JobPosting,
     WorkflowStep,
 )
+from ..supabase import SupabaseAPIError
 from ..storage import save_file
 from ..email import send_application_confirmation
 
@@ -239,14 +240,39 @@ def apply(job_id: int):
             )
         )
 
-    _save_one(cv_file, "cv")
-    _save_one(cover_file, "cover_letter")
-    for f in cert_files:
-        _save_one(f, "certificate")
-    for f in other_files:
-        _save_one(f, "other")
+    try:
+        _save_one(cv_file, "cv")
+        _save_one(cover_file, "cover_letter")
+        for f in cert_files:
+            _save_one(f, "certificate")
+        for f in other_files:
+            _save_one(f, "other")
 
-    db.session.commit()
+        db.session.commit()
+    except SupabaseAPIError:
+        # Misconfigured storage (e.g. missing SUPABASE_URL) or upstream storage error.
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        try:
+            current_app.logger.warning("Apply upload failed due to Supabase storage error", exc_info=True)
+        except Exception:
+            pass
+        return _render_apply_error(
+            "Upload ist aktuell nicht verfügbar (Server-Konfiguration). Bitte später erneut versuchen."
+        )
+    except Exception:
+        # Any other error during saving/committing: rollback and show a safe error to the candidate.
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        try:
+            current_app.logger.exception("Apply submission failed")
+        except Exception:
+            pass
+        return _render_apply_error("Es ist ein Fehler aufgetreten. Bitte später erneut versuchen.")
 
     # Email confirmation (optional via M365)
     send_application_confirmation(candidate.email, application.reference_number or str(application.id))

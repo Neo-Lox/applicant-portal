@@ -51,6 +51,18 @@ def create_app(config_class=Config) -> Flask:
     except Exception:
         pass
 
+    # Startup diagnostics (avoid logging secrets; booleans only)
+    try:
+        app.logger.info(
+            "Startup config: STORAGE_MODE=%s SUPABASE_URL_set=%s SUPABASE_SERVICE_ROLE_KEY_set=%s DATABASE_URL_set=%s",
+            (app.config.get("STORAGE_MODE") or "local"),
+            bool((app.config.get("SUPABASE_URL") or "").strip()),
+            bool((app.config.get("SUPABASE_SERVICE_ROLE_KEY") or "").strip()),
+            bool((app.config.get("DATABASE_URL") or "").strip()),
+        )
+    except Exception:
+        pass
+
     app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
     db.init_app(app)
     limiter.init_app(app)

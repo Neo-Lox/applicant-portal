@@ -27,6 +27,7 @@ from ..security import (
     revoke_token,
     utcnow,
 )
+from ..supabase import SupabaseAPIError
 from ..storage import filestorage_size_bytes, save_file
 from ..url_utils import public_url_for
 
@@ -376,7 +377,28 @@ def upload_files(token: str):
         limit = _max_for_mime(file.mimetype)
         if size is not None and limit and size > limit:
             return jsonify({"error": "file_too_large", "maxBytes": limit}), 400
-        saved_file = save_file(file, record.application_id)
+        try:
+            saved_file = save_file(file, record.application_id)
+        except SupabaseAPIError:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            try:
+                current_app.logger.warning("Magic-link upload failed due to Supabase storage error", exc_info=True)
+            except Exception:
+                pass
+            return jsonify({"error": "storage_not_configured"}), 503
+        except Exception:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            try:
+                current_app.logger.exception("Magic-link upload failed")
+            except Exception:
+                pass
+            return jsonify({"error": "upload_failed"}), 500
         attachment = Attachment(
             application_id=record.application_id,
             file_url=saved_file["file_url"],
