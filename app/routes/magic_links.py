@@ -28,7 +28,7 @@ from ..security import (
     utcnow,
 )
 from ..supabase import SupabaseAPIError
-from ..storage import filestorage_size_bytes, save_file
+from ..storage import delete_file, filestorage_size_bytes, save_file
 from ..url_utils import public_url_for
 
 magic_links = Blueprint("magic_links", __name__)
@@ -447,25 +447,41 @@ def upload_files(token: str):
         db.session.commit()
 
         # Email (best-effort): alert recipients that new docs arrived
-        try:
-            application_url = public_url_for("internal.application_detail", application_id=application.id)
-            uploaded_names = [s.get("file_name") for s in (saved or []) if isinstance(s, dict) and s.get("file_name")]
-            for uid in set(recipients):
-                u = db.session.get(User, uid)
-                if not u or not u.email:
-                    continue
-                send_candidate_upload_notification(
-                    to_email=u.email,
-                    reference_number=str(application.reference_number or application.id),
-                    application_url=application_url,
-                    doc_title=(node.title if node else None),
-                    uploaded_file_names=[str(x) for x in uploaded_names],
-                )
-        except Exception:
+        # Throttle: only send email once per configured interval (default 30 min) per application
+        should_send_email = False
+        throttle_minutes = int(current_app.config.get("CANDIDATE_UPLOAD_EMAIL_THROTTLE_MINUTES") or 30)
+        if throttle_minutes > 0:
+            now = utcnow()
+            last_email = ensure_utc_aware(application.last_candidate_upload_email_at) if application.last_candidate_upload_email_at else None
+            if not last_email or (now - last_email).total_seconds() >= (throttle_minutes * 60):
+                should_send_email = True
+                application.last_candidate_upload_email_at = now
+                db.session.add(application)
+                db.session.commit()
+        else:
+            # Throttle disabled (0 or negative) → always send
+            should_send_email = True
+
+        if should_send_email:
             try:
-                current_app.logger.warning("Candidate-upload email notify failed", exc_info=True)
+                application_url = public_url_for("internal.application_detail", application_id=application.id)
+                uploaded_names = [s.get("file_name") for s in (saved or []) if isinstance(s, dict) and s.get("file_name")]
+                for uid in set(recipients):
+                    u = db.session.get(User, uid)
+                    if not u or not u.email:
+                        continue
+                    send_candidate_upload_notification(
+                        to_email=u.email,
+                        reference_number=str(application.reference_number or application.id),
+                        application_url=application_url,
+                        doc_title=(node.title if node else None),
+                        uploaded_file_names=[str(x) for x in uploaded_names],
+                    )
             except Exception:
-                pass
+                try:
+                    current_app.logger.warning("Candidate-upload email notify failed", exc_info=True)
+                except Exception:
+                    pass
 
     mark_token_used(record)
 
@@ -563,3 +579,66 @@ def upload_files(token: str):
         "missing_docs": updated_missing_docs,
         "all_uploaded_files": updated_uploaded_files,
     }), 201
+
+
+@magic_links.delete("/r/<token>/attachments/<int:attachment_id>")
+@csrf.exempt
+@limiter.limit("30/minute")
+def delete_attachment_via_magic_link(token: str, attachment_id: int):
+    """
+    Delete an uploaded attachment via magic link.
+    
+    Candidates can only delete their own uploads (uploaded_by='candidate').
+    """
+    scope = current_app.config["MAGIC_LINK_SCOPE_UPLOAD"]
+    record, error = _resolve_token(token, scope)
+    if error:
+        return jsonify({"error": "invalid_or_expired"}), 404
+
+    attachment = db.session.get(Attachment, attachment_id)
+    if not attachment or attachment.application_id != record.application_id:
+        return jsonify({"error": "not_found"}), 404
+
+    # Only allow deleting candidate uploads (not recruiter uploads)
+    if attachment.uploaded_by != "candidate":
+        return jsonify({"error": "forbidden"}), 403
+
+    file_url = attachment.file_url
+
+    # Remove any links to document nodes
+    try:
+        AttachmentDocumentLink.query.filter_by(attachment_id=attachment.id).delete()
+    except Exception:
+        pass
+
+    # Delete from database
+    db.session.delete(attachment)
+    db.session.commit()
+
+    # Delete from storage (best-effort)
+    if file_url:
+        try:
+            delete_file(file_url)
+        except Exception:
+            try:
+                current_app.logger.warning("Failed to delete file from storage: %s", file_url, exc_info=True)
+            except Exception:
+                pass
+
+    mark_token_used(record)
+
+    # Return updated uploaded files list
+    updated_uploaded_files = []
+    attachments = Attachment.query.filter_by(application_id=record.application_id).order_by(Attachment.id.desc()).all()
+    for att in attachments:
+        updated_uploaded_files.append({
+            "id": att.id,
+            "name": att.file_name or "Datei",
+            "type": att.document_type,
+            "uploaded_by": att.uploaded_by,
+        })
+
+    return jsonify({
+        "status": "deleted",
+        "all_uploaded_files": updated_uploaded_files,
+    }), 200

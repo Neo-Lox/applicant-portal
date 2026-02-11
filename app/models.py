@@ -107,6 +107,7 @@ class Application(db.Model):
     current_step_id = db.Column(db.Integer, nullable=True, index=True)
     source = db.Column(db.String(100), nullable=True)
     reference_number = db.Column(db.String(50), nullable=True, unique=True, index=True)
+    last_candidate_upload_email_at = db.Column(db.DateTime(timezone=True), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 
 
