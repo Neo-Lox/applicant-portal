@@ -114,6 +114,7 @@
   </div>
 
   <form method="post" action="/admin/users/{{ user_row.id }}/delete" style="margin-top: 1rem;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-row">
       <div class="form-group">
         <label>Ersatz-Benutzer (optional, aber nötig bei Benachrichtigungen)</label>
