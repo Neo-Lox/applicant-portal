@@ -824,6 +824,44 @@ main {
     color: var(--text-primary);
 }
 
+/* Password visibility toggle (eye icon) */
+.password-field {
+    position: relative;
+}
+
+.password-field input[type="password"],
+.password-field input[type="text"] {
+    padding-right: 2.75rem;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 0.6rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+}
+
+.password-toggle:hover {
+    background: rgba(148, 163, 184, 0.15);
+    color: var(--text-primary);
+}
+
+.password-toggle:focus-visible {
+    outline: 3px solid rgba(37, 99, 235, 0.35);
+    outline-offset: 2px;
+}
+
 .job-card-actions {
     display: flex;
     gap: 0.75rem;

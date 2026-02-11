@@ -65,5 +65,37 @@
     </footer>
 
     {% block scripts %}{% endblock %}
+
+    <script>
+      (function () {
+        const toggles = Array.from(document.querySelectorAll('.password-toggle[data-toggle-password]'));
+        if (!toggles.length) return;
+
+        function sync(btn, input) {
+          const isVisible = input.type === 'text';
+          const eyeOpen = btn.querySelector('[data-eye="open"]');
+          const eyeOff = btn.querySelector('[data-eye="off"]');
+          if (eyeOpen) eyeOpen.style.display = isVisible ? 'none' : 'inline';
+          if (eyeOff) eyeOff.style.display = isVisible ? 'inline' : 'none';
+          btn.setAttribute('aria-pressed', String(isVisible));
+        }
+
+        for (const btn of toggles) {
+          const sel = btn.getAttribute('data-toggle-password');
+          if (!sel) continue;
+          const input = document.querySelector(sel);
+          if (!input) continue;
+
+          // Init state
+          try { sync(btn, input); } catch (e) {}
+
+          btn.addEventListener('click', function () {
+            input.type = (input.type === 'password') ? 'text' : 'password';
+            sync(btn, input);
+            try { input.focus(); } catch (e) {}
+          });
+        }
+      })();
+    </script>
 </body>
 </html>
