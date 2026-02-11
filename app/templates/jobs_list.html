@@ -72,7 +72,7 @@
 
                 <div id="{{ panel_id }}" class="job-card-panel" hidden>
                     {% if job.description %}
-                        <p class="job-description job-description--teaser">{{ job.description | truncate(240, True, "…") }}</p>
+                        <p class="job-description">{{ job.description }}</p>
                     {% else %}
                         <p style="color: var(--text-secondary);">Keine Beschreibung vorhanden.</p>
                     {% endif %}

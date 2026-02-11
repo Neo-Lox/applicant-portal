@@ -320,6 +320,8 @@ def upload_files(token: str):
 
     doc_node_id_raw = (request.form.get("doc_node_id") or "").strip()
     doc_node_id = int(doc_node_id_raw) if doc_node_id_raw.isdigit() else None
+    replace_raw = (request.form.get("replace") or "").strip().lower()
+    replace_existing = replace_raw in {"1", "true", "yes", "on"}
 
     application = db.session.get(Application, record.application_id)
     node = None
@@ -327,6 +329,25 @@ def upload_files(token: str):
         node = db.session.get(JobDocumentNode, doc_node_id)
         if not node or node.job_id != application.job_id or node.kind != "item":
             node = None
+
+    # If requested, we will replace (delete) existing candidate-uploaded attachments linked to this node
+    # AFTER a successful new upload, so candidates don't lose files if upload fails.
+    existing_linked_candidate_attachments: list[Attachment] = []
+    if application and node and replace_existing:
+        try:
+            rows = (
+                db.session.query(AttachmentDocumentLink, Attachment)
+                .join(Attachment, Attachment.id == AttachmentDocumentLink.attachment_id)
+                .filter(
+                    AttachmentDocumentLink.node_id == node.id,
+                    Attachment.application_id == record.application_id,
+                    Attachment.uploaded_by == "candidate",
+                )
+                .all()
+            )
+            existing_linked_candidate_attachments = [att for _link, att in rows if att]
+        except Exception:
+            existing_linked_candidate_attachments = []
 
     allowed_types = current_app.config["ALLOWED_MIME_TYPES"]
     saved = []
@@ -426,6 +447,52 @@ def upload_files(token: str):
                     )
                 )
         db.session.commit()
+
+    # Replace semantics: remove previously linked candidate uploads for this checklist item.
+    # Done after successful upload+link so candidate doesn't lose files if upload fails.
+    if node and replace_existing and existing_linked_candidate_attachments:
+        file_urls_to_delete: list[str] = []
+        try:
+            for old_att in existing_linked_candidate_attachments:
+                if not old_att or old_att.id is None:
+                    continue
+
+                # Unlink from this node
+                try:
+                    AttachmentDocumentLink.query.filter_by(attachment_id=old_att.id, node_id=node.id).delete()
+                except Exception:
+                    pass
+
+                # Only delete the attachment record if it isn't linked anywhere else
+                try:
+                    remaining_links = AttachmentDocumentLink.query.filter_by(attachment_id=old_att.id).count()
+                except Exception:
+                    remaining_links = 0
+
+                if remaining_links <= 0:
+                    try:
+                        if old_att.file_url:
+                            file_urls_to_delete.append(old_att.file_url)
+                    except Exception:
+                        pass
+                    try:
+                        db.session.delete(old_att)
+                    except Exception:
+                        pass
+
+            db.session.commit()
+        except Exception:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+
+        # Delete files from storage (best-effort, after DB commit)
+        for p in file_urls_to_delete:
+            try:
+                delete_file(p)
+            except Exception:
+                pass
 
     # Notify responsible recruiter/admin that new docs arrived
     if application:
