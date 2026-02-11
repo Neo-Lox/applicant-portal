@@ -463,6 +463,62 @@ def send_password_reset_email(*, to_email: str, reset_url: str) -> bool:
     return False
 
 
+def send_user_invitation_email(*, to_email: str, set_password_url: str) -> bool:
+    """
+    Send an invitation email to internal users (recruiters/admins/viewers).
+
+    The email contains a one-time set-password link (implemented via the password reset flow).
+    """
+    subject = "Neo Lox GmbH – Applicant Portal – Einladung"
+    safe_url = _html.escape(str(set_password_url or ""), quote=True)
+    signature = _email_signature_html()
+    ttl_hours = int(current_app.config.get("PASSWORD_RESET_TTL_HOURS", 2) or 2)
+    html = f"""
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
+      Einladung – Konto erstellen – Passwort setzen.
+    </div>
+
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background:#f1f5f9; padding:24px;">
+      <div style="max-width:720px; margin:0 auto; background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden;">
+        <div style="padding:18px 22px; background:#0f172a;">
+          <div style="font-size:14px; letter-spacing:0.06em; text-transform:uppercase; color:#cbd5e1;">Neo Lox GmbH</div>
+          <div style="font-size:20px; font-weight:750; color:#ffffff; margin-top:4px;">Einladung ins Applicant Portal</div>
+        </div>
+
+        <div style="padding:22px; color:#0f172a;">
+          <p style="margin:0 0 12px 0; font-size:16px;">Guten Tag,</p>
+          <p style="margin:0 0 14px 0; font-size:15px; line-height:1.5;">
+            Sie wurden eingeladen, das <strong>Neo Lox Applicant Portal</strong> zu nutzen.
+            Bitte setzen Sie jetzt Ihr Passwort, um sich anmelden zu können.
+          </p>
+          <p style="margin:0 0 14px 0;">
+            <a href="{safe_url}" style="display:inline-block; padding:11px 16px; background:#2563eb; color:#ffffff; text-decoration:none; border-radius:10px; font-weight:750;">
+              Passwort setzen
+            </a>
+          </p>
+          <p style="margin:0; color:#475569; font-size:13px; line-height:1.5;">
+            Falls der Button nicht funktioniert, öffnen Sie diesen Link:
+            <a href="{safe_url}" style="color:#2563eb;">{safe_url}</a>
+          </p>
+          <p style="margin:10px 0 0 0; color:#475569; font-size:13px; line-height:1.5;">
+            Der Link ist {ttl_hours} Stunden gültig.
+          </p>
+
+          {signature}
+        </div>
+
+        <div style="padding:14px 22px; background:#f8fafc; border-top:1px solid #e2e8f0; color:#64748b; font-size:12px; line-height:1.5;">
+          Diese Nachricht wurde automatisch erstellt. Bitte antworten Sie nicht auf diese E-Mail.
+        </div>
+      </div>
+    </div>
+    """
+    if _send_graph_mail(to_email, subject, html):
+        return True
+    current_app.logger.info("Sending invitation to %s (stub)", to_email)
+    return False
+
+
 def send_application_confirmation(email: str, reference_number: str) -> None:
     """
     Candidate-facing confirmation email after application submission.

@@ -40,7 +40,7 @@
         <div class="form-row">
           <div class="form-group" style="margin-bottom:0;">
             <label>Neues Passwort</label>
-            <input name="new_password" type="password" minlength="6" placeholder="mind. 6 Zeichen">
+            <input name="new_password" type="password" minlength="8" placeholder="mind. 8 Zeichen, 1 Großbuchstabe, 1 Sonderzeichen">
             <p class="wf-help" style="margin-top:0.4rem;">Leer lassen, wenn das Passwort unverändert bleiben soll.</p>
           </div>
         </div>
@@ -54,6 +54,17 @@
         <a href="/admin/users" class="btn btn-outline">Zurück</a>
       </div>
     </div>
+  </form>
+</div>
+
+<div class="card">
+  <h2 class="card-title">Einladung / Passwort-Link</h2>
+  <p class="wf-help" style="margin-top:0.25rem;">
+    Sendet eine E-Mail mit einem Link zum Passwort setzen (best-effort; erfordert M365 Konfiguration).
+  </p>
+  <form method="post" action="/admin/users/{{ user_row.id }}/invite" style="margin-top: 0.75rem;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-outline">{{ icon("mail") }} Einladung / Passwort-Link senden</button>
   </form>
 </div>
 

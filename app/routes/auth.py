@@ -5,6 +5,7 @@ from ..email import send_password_reset_email
 from ..extensions import limiter
 from ..extensions import db
 from ..models import User
+from ..password_policy import password_policy_error
 from ..security import issue_password_reset_token, lookup_password_reset_token, mark_password_reset_used
 from ..url_utils import public_url_for
 
@@ -73,12 +74,13 @@ def reset_password_post(token: str):
 
     new_pw = (request.form.get("password") or "").strip()
     new_pw2 = (request.form.get("password2") or "").strip()
-    if len(new_pw) < 8:
+    policy_err = password_policy_error(new_pw)
+    if policy_err:
         return (
             render_template(
                 "reset_password.html",
                 token=token,
-                error="Passwort muss mindestens 8 Zeichen lang sein.",
+                error=policy_err,
             ),
             400,
         )

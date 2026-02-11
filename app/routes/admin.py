@@ -1,10 +1,11 @@
 from functools import wraps
+import secrets
 from datetime import date, datetime
 
 from flask import Blueprint, redirect, render_template, request, url_for
 
 from ..auth_utils import current_user, login_required
-from ..email import send_test_email
+from ..email import send_test_email, send_user_invitation_email
 from ..extensions import db
 from ..models import (
     Application,
@@ -19,6 +20,9 @@ from ..models import (
     workflow_step_fallback_users,
     AttachmentDocumentLink,
 )
+from ..password_policy import password_policy_error
+from ..security import issue_password_reset_token
+from ..url_utils import public_url_for
 
 
 def admin_required(view):
@@ -792,25 +796,35 @@ def create_user():
     from werkzeug.security import generate_password_hash
 
     email = (request.form.get("email") or "").strip().lower()
-    password = request.form.get("password") or ""
     role = request.form.get("role") or "recruiter"
     if role not in {"admin", "recruiter", "viewer"}:
         role = "recruiter"
 
-    if not email or not password:
-        return redirect(url_for("admin.users", error="Bitte E-Mail und Passwort angeben."))
+    if not email:
+        return redirect(url_for("admin.users", error="Bitte E-Mail angeben."))
 
     if User.query.filter_by(email=email).first():
         return redirect(url_for("admin.users", error="E-Mail ist bereits vergeben."))
 
+    # Create with a random temp password so the invited user MUST set a password via the email link.
+    temp_password = secrets.token_urlsafe(24)
     user = User(
         email=email,
-        password_hash=generate_password_hash(password),
+        password_hash=generate_password_hash(temp_password),
         role=role,
     )
     db.session.add(user)
     db.session.commit()
-    return redirect(url_for("admin.users", success="Benutzer erstellt."))
+
+    # Send invitation email (best-effort)
+    try:
+        token = issue_password_reset_token(user.id)
+        reset_url = public_url_for("auth.reset_password", token=token)
+        send_user_invitation_email(to_email=user.email, set_password_url=reset_url)
+    except Exception:
+        pass
+
+    return redirect(url_for("admin.users", success="Benutzer erstellt. Einladung wurde per E-Mail gesendet (falls E-Mail konfiguriert ist)."))
 
 
 def _user_delete_impact(user_id: int) -> dict[str, int]:
@@ -877,13 +891,33 @@ def save_user_edit(user_id: int):
     user_row.email = email
     user_row.role = role
     if new_pw:
-        if len(new_pw) < 6:
-            return redirect(url_for("admin.edit_user", user_id=user_id, error="Passwort ist zu kurz (min. 6 Zeichen)."))
+        policy_err = password_policy_error(new_pw)
+        if policy_err:
+            return redirect(url_for("admin.edit_user", user_id=user_id, error=policy_err))
         user_row.password_hash = generate_password_hash(new_pw)
 
     db.session.add(user_row)
     db.session.commit()
     return redirect(url_for("admin.edit_user", user_id=user_id, success="Benutzer gespeichert."))
+
+
+@admin.post("/users/<int:user_id>/invite")
+@admin_required
+def invite_user(user_id: int):
+    """Resend invitation / set-password email to an internal user (best-effort)."""
+    user_row = db.session.get(User, user_id)
+    if not user_row or not user_row.email:
+        return redirect(url_for("admin.users", error="Benutzer nicht gefunden."))
+
+    try:
+        token = issue_password_reset_token(user_row.id)
+        reset_url = public_url_for("auth.reset_password", token=token)
+        ok = send_user_invitation_email(to_email=user_row.email, set_password_url=reset_url)
+        if ok:
+            return redirect(url_for("admin.edit_user", user_id=user_id, success="Einladung / Passwort-Link wurde gesendet."))
+        return redirect(url_for("admin.edit_user", user_id=user_id, error="E-Mail konnte nicht gesendet werden. Bitte M365 Variablen prüfen (Logs)."))
+    except Exception:
+        return redirect(url_for("admin.edit_user", user_id=user_id, error="E-Mail konnte nicht gesendet werden. Bitte Logs prüfen."))
 
 
 @admin.post("/users/<int:user_id>/delete")
