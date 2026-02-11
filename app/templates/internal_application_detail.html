@@ -374,7 +374,7 @@
                                                             {% set st = status_by_node_id.get(n.id) %}
                                                             {% set s = (st.status if st else "missing") %}
                                                             {% if s in ["missing","wrong"] %}
-                                                                <label class="request-item">
+                                                                <label class="request-item" data-request-status="{{ s }}" data-request-node-id="{{ n.id }}">
                                                                     <input type="checkbox" name="selected_node_ids" value="{{ n.id }}" {% if n.required %}checked{% endif %}>
                                                                     <span>{{ (n.code ~ ' ') if n.code else '' }}{{ n.title }}{% if n.required %} (Pflicht){% endif %}</span>
                                                                 </label>
@@ -558,7 +558,8 @@
 
     <script>
         function filterDocs(mode) {
-            const items = document.querySelectorAll('[data-doc-status]');
+            // Filter only the doccheck tree items (do NOT accidentally filter other elements)
+            const items = document.querySelectorAll('.doccheck-item[data-doc-status]');
             items.forEach(item => {
                 const status = item.getAttribute('data-doc-status');
                 if (mode === 'all') {
@@ -567,7 +568,28 @@
                     item.style.display = (status === mode) ? '' : 'none';
                 }
             });
+
+            // Sync the "request missing docs" checkbox list with the active filter.
+            // - all    => show missing+wrong, select all visible
+            // - missing=> show missing only, select all visible
+            // - wrong  => show wrong only, select all visible
+            const requestItems = document.querySelectorAll('.request-items .request-item[data-request-status]');
+            requestItems.forEach(label => {
+                const st = label.getAttribute('data-request-status');
+                const input = label.querySelector('input[type="checkbox"]');
+                const visible = (mode === 'all') ? (st === 'missing' || st === 'wrong') : (st === mode);
+
+                label.style.display = visible ? '' : 'none';
+
+                if (input) {
+                    input.disabled = !visible;
+                    input.checked = visible; // "Alle" means: all selectable items in the list
+                }
+            });
         }
+
+        // Initialize default filter so checkboxes match the tree view.
+        try { filterDocs('all'); } catch (e) {}
 
         function openDetails(id) {
             const el = document.getElementById(id);
